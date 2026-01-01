@@ -1,0 +1,25 @@
+# write gitignore file
+node_modules/
+.env        
+.DS_Store
+.vscode/
+dist/
+*.log
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log* 
+coverage/
+.idea/
+*.iml           
+.cache/
+*.sqlite
+*.sqlite3
+thumbs.db
+*.bak   
+
+# keep encrypted folder but ignore its contents
+encrypted/*
+!encrypted/.gitkeep
+# keep uploads folder but ignore its contents
+uploads/*
+!uploads/.gitkeep

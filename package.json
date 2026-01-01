@@ -1,0 +1,19 @@
+{
+  "name": "secure-image-viewer",
+  "version": "1.0.0",
+  "description": "A secure image viewer with encryption/decryption support",
+  "main": "server.js",
+  "scripts": {
+    "test": "echo \"Error: no test specified\" && exit 1",
+    "start": "node server.js"
+  },
+  "keywords": ["encryption", "images", "secure", "viewer"],
+  "author": "",
+  "license": "ISC",
+  "type": "commonjs",
+  "dependencies": {
+    "express": "^5.2.1",
+    "multer": "^1.4.5-lts.1",
+    "uuid": "^9.0.0"
+  }
+}

@@ -1,0 +1,223 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>🔐 Secure Image Viewer</title>
+  <link rel="stylesheet" href="styles.css">
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&display=swap" rel="stylesheet">
+</head>
+<body>
+  <div class="app">
+    <!-- Header -->
+    <header class="header">
+      <div class="header-content">
+        <div class="header-top">
+          <div class="logo">
+            <span class="logo-icon">🔐</span>
+            <h1>Secure Image Viewer</h1>
+          </div>
+          <div class="header-actions">
+            <!-- Session Key Indicator -->
+            <button class="btn btn-icon" id="sessionKeyBtn" title="Session Key">
+              <span id="sessionKeyIcon">🔑</span>
+            </button>
+            <!-- Night Mode Toggle -->
+            <button class="btn btn-icon" id="themeToggle" title="Toggle Dark Mode">
+              <span id="themeIcon">🌙</span>
+            </button>
+          </div>
+        </div>
+        <p class="tagline">Encrypt & protect your images with a secret key</p>
+      </div>
+    </header>
+
+    <!-- Session Key Banner -->
+    <div class="session-banner hidden" id="sessionBanner">
+      <div class="session-banner-content">
+        <span>🔑</span>
+        <span>Session key is active</span>
+        <button class="btn btn-sm btn-secondary" id="clearSessionKeyBtn">Clear</button>
+      </div>
+    </div>
+
+    <!-- Session Key Modal -->
+    <div class="modal" id="sessionKeyModal">
+      <div class="modal-overlay"></div>
+      <div class="modal-container modal-sm">
+        <div class="modal-header">
+          <h3>🔑 Session Key</h3>
+          <button class="btn-close" id="closeSessionModal">✕</button>
+        </div>
+        <div class="modal-body">
+          <p class="session-description">
+            Set a master key for this session. This key will be automatically used for all encryption and decryption operations.
+          </p>
+          <div class="form-group">
+            <label for="sessionKeyInput">Session Key</label>
+            <div class="input-with-icon">
+              <input type="password" id="sessionKeyInput" placeholder="Enter your session key" minlength="4">
+              <button type="button" class="btn-toggle-pass" data-target="sessionKeyInput">👁️</button>
+            </div>
+            <small>Minimum 4 characters. Key is stored only in browser memory.</small>
+          </div>
+          <div class="session-status" id="sessionStatus"></div>
+        </div>
+        <div class="modal-footer">
+          <button class="btn btn-danger" id="removeSessionKey" style="display: none;">Remove Key</button>
+          <button class="btn btn-primary" id="setSessionKey">Set Session Key</button>
+        </div>
+      </div>
+    </div>
+
+    <!-- Main Content -->
+    <main class="main">
+      <!-- Tab Navigation -->
+      <nav class="tabs">
+        <button class="tab-btn active" data-tab="gallery">
+          <span class="tab-icon">🖼️</span>
+          <span class="tab-text">Gallery</span>
+        </button>
+        <button class="tab-btn" data-tab="encrypt">
+          <span class="tab-icon">🔒</span>
+          <span class="tab-text">Encrypt</span>
+        </button>
+      </nav>
+
+      <!-- Tab Content -->
+      <div class="tab-content">
+        <!-- Gallery Tab -->
+        <section id="gallery" class="tab-pane active">
+          <div class="gallery-header">
+            <h2>Encrypted Images</h2>
+            <button class="btn btn-refresh" id="refreshBtn">
+              <span>🔄</span> Refresh
+            </button>
+          </div>
+          
+          <div id="imageGrid" class="image-grid">
+            <!-- Images will be loaded here -->
+          </div>
+          
+          <div id="emptyState" class="empty-state hidden">
+            <div class="empty-icon">📭</div>
+            <h3>No encrypted images yet</h3>
+            <p>Upload and encrypt your first image to get started</p>
+            <button class="btn btn-primary" onclick="switchTab('encrypt')">
+              Encrypt an Image
+            </button>
+          </div>
+        </section>
+
+        <!-- Encrypt Tab -->
+        <section id="encrypt" class="tab-pane">
+          <div class="encrypt-container">
+            <h2>Encrypt New Image</h2>
+            
+            <form id="encryptForm" class="encrypt-form">
+              <!-- Dropzone -->
+              <div class="dropzone" id="dropzone">
+                <input type="file" id="fileInput" accept="image/*" hidden>
+                <div class="dropzone-content">
+                  <div class="dropzone-icon">📤</div>
+                  <p class="dropzone-text">Drag & drop an image here</p>
+                  <p class="dropzone-subtext">or click to browse</p>
+                </div>
+                <div class="dropzone-preview hidden" id="preview">
+                  <img id="previewImg" src="" alt="Preview">
+                  <button type="button" class="btn-remove" id="removeBtn">✕</button>
+                </div>
+              </div>
+
+              <!-- Image Name -->
+              <div class="form-group">
+                <label for="imageName">Image Name (optional)</label>
+                <input type="text" id="imageName" placeholder="Enter a name for your image">
+              </div>
+
+              <!-- Encryption Key -->
+              <div class="form-group" id="encryptKeyGroup">
+                <label for="encryptKey">Encryption Key *</label>
+                <div class="input-with-icon">
+                  <input type="password" id="encryptKey" placeholder="Enter your secret key" required minlength="4">
+                  <button type="button" class="btn-toggle-pass" data-target="encryptKey">👁️</button>
+                </div>
+                <small>Minimum 4 characters. Remember this key to view your image!</small>
+              </div>
+
+              <!-- Confirm Key -->
+              <div class="form-group" id="confirmKeyGroup">
+                <label for="confirmKey">Confirm Key *</label>
+                <div class="input-with-icon">
+                  <input type="password" id="confirmKey" placeholder="Confirm your secret key" required>
+                  <button type="button" class="btn-toggle-pass" data-target="confirmKey">👁️</button>
+                </div>
+              </div>
+
+              <!-- Session Key Notice -->
+              <div class="session-key-notice hidden" id="encryptSessionNotice">
+                <span>🔑</span>
+                <span>Using session key for encryption</span>
+              </div>
+
+              <button type="submit" class="btn btn-primary btn-block" id="encryptBtn">
+                <span class="btn-text">🔒 Encrypt Image</span>
+                <span class="btn-loading hidden">⏳ Encrypting...</span>
+              </button>
+            </form>
+          </div>
+        </section>
+      </div>
+    </main>
+
+    <!-- Image Viewer Modal -->
+    <div class="modal" id="viewerModal">
+      <div class="modal-overlay"></div>
+      <div class="modal-container">
+        <div class="modal-header">
+          <h3 id="modalTitle">View Image</h3>
+          <button class="btn-close" id="closeModal">✕</button>
+        </div>
+        <div class="modal-body">
+          <!-- Decrypt Form -->
+          <div id="decryptForm" class="decrypt-section">
+            <div class="lock-icon">🔒</div>
+            <p>This image is encrypted. Enter the key to view it.</p>
+            <div class="form-group" id="decryptKeyGroup">
+              <div class="input-with-icon">
+                <input type="password" id="decryptKey" placeholder="Enter decryption key">
+                <button type="button" class="btn-toggle-pass" data-target="decryptKey">👁️</button>
+              </div>
+            </div>
+            <!-- Session Key Notice for Decrypt -->
+            <div class="session-key-notice hidden" id="decryptSessionNotice">
+              <span>🔑</span>
+              <span>Using session key for decryption</span>
+            </div>
+            <button class="btn btn-primary btn-block" id="decryptBtn">
+              🔓 Decrypt & View
+            </button>
+            <div id="decryptError" class="error-message hidden"></div>
+          </div>
+          
+          <!-- Decrypted Image View -->
+          <div id="imageView" class="image-view hidden">
+            <img id="decryptedImage" src="" alt="Decrypted Image">
+          </div>
+        </div>
+        <div class="modal-footer">
+          <button class="btn btn-danger" id="deleteBtn">🗑️ Delete</button>
+          <button class="btn btn-secondary" id="lockBtn" style="display: none;">🔒 Lock</button>
+        </div>
+      </div>
+    </div>
+
+    <!-- Toast Container -->
+    <div id="toastContainer" class="toast-container"></div>
+  </div>
+
+  <script src="app.js"></script>
+</body>
+</html>
