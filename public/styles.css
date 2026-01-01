@@ -674,13 +674,123 @@ input:focus {
   align-items: center;
   justify-content: center;
   min-height: 200px;
+  position: relative;
+  overflow: hidden;
+  background: rgba(0, 0, 0, 0.02);
+  border-radius: var(--radius);
+  touch-action: none;
+  user-select: none;
+}
+
+[data-theme="dark"] .image-view {
+  background: rgba(0, 0, 0, 0.2);
+}
+
+.image-view-container {
+  position: relative;
+  width: 100%;
+  height: 100%;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  cursor: grab;
+}
+
+.image-view-container.dragging {
+  cursor: grabbing;
 }
 
 .image-view img {
   max-width: 100%;
   max-height: 60vh;
-  border-radius: var(--radius);
+  border-radius: var(--radius-sm);
   box-shadow: var(--shadow);
+  transition: none;
+  transform-origin: center center;
+  pointer-events: none;
+}
+
+/* Zoom Controls */
+.zoom-controls {
+  position: absolute;
+  bottom: 1rem;
+  right: 1rem;
+  display: flex;
+  flex-direction: column;
+  gap: 0.5rem;
+  z-index: 10;
+}
+
+.zoom-btn {
+  width: 2.5rem;
+  height: 2.5rem;
+  border: none;
+  border-radius: var(--radius);
+  background: var(--bg-card);
+  color: var(--text-primary);
+  font-size: 1.25rem;
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  box-shadow: var(--shadow-lg);
+  transition: var(--transition);
+  user-select: none;
+  -webkit-tap-highlight-color: transparent;
+}
+
+.zoom-btn:hover {
+  background: var(--primary);
+  color: white;
+  transform: scale(1.05);
+}
+
+.zoom-btn:active {
+  transform: scale(0.95);
+}
+
+.zoom-btn:disabled {
+  opacity: 0.4;
+  cursor: not-allowed;
+  transform: none;
+}
+
+.zoom-info {
+  width: 2.5rem;
+  height: 2.5rem;
+  border-radius: var(--radius);
+  background: var(--bg-card);
+  color: var(--text-primary);
+  font-size: 0.75rem;
+  font-weight: 600;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  box-shadow: var(--shadow-lg);
+  user-select: none;
+}
+
+/* Mobile optimizations */
+@media (max-width: 640px) {
+  .zoom-controls {
+    bottom: 0.5rem;
+    right: 0.5rem;
+  }
+  
+  .zoom-btn,
+  .zoom-info {
+    width: 2.25rem;
+    height: 2.25rem;
+    font-size: 1rem;
+  }
+  
+  .zoom-info {
+    font-size: 0.7rem;
+  }
+  
+  .image-view img {
+    max-height: 50vh;
+  }
 }
 
 /* ===== Toast ===== */

@@ -43,9 +43,16 @@ const elements = {
   decryptBtn: document.getElementById('decryptBtn'),
   decryptError: document.getElementById('decryptError'),
   imageView: document.getElementById('imageView'),
+  imageContainer: document.getElementById('imageContainer'),
   decryptedImage: document.getElementById('decryptedImage'),
   deleteBtn: document.getElementById('deleteBtn'),
   lockBtn: document.getElementById('lockBtn'),
+  
+  // Zoom controls
+  zoomInBtn: document.getElementById('zoomInBtn'),
+  zoomOutBtn: document.getElementById('zoomOutBtn'),
+  zoomResetBtn: document.getElementById('zoomResetBtn'),
+  zoomLevel: document.getElementById('zoomLevel'),
   
   // Toast
   toastContainer: document.getElementById('toastContainer'),
@@ -86,6 +93,182 @@ function toggleTheme() {
 }
 
 elements.themeToggle.addEventListener('click', toggleTheme);
+
+// ===== Image Zoom & Pan Management =====
+let imageZoom = {
+  scale: 1,
+  minScale: 0.5,
+  maxScale: 5,
+  step: 0.25,
+  translateX: 0,
+  translateY: 0,
+  isDragging: false,
+  startX: 0,
+  startY: 0,
+  lastTouchDistance: 0
+};
+
+function resetImageZoom() {
+  imageZoom.scale = 1;
+  imageZoom.translateX = 0;
+  imageZoom.translateY = 0;
+  imageZoom.isDragging = false;
+  updateImageTransform();
+}
+
+function updateImageTransform() {
+  const img = elements.decryptedImage;
+  img.style.transform = `translate(${imageZoom.translateX}px, ${imageZoom.translateY}px) scale(${imageZoom.scale})`;
+  elements.zoomLevel.textContent = `${Math.round(imageZoom.scale * 100)}%`;
+  
+  // Update button states
+  elements.zoomInBtn.disabled = imageZoom.scale >= imageZoom.maxScale;
+  elements.zoomOutBtn.disabled = imageZoom.scale <= imageZoom.minScale;
+}
+
+function zoomIn() {
+  if (imageZoom.scale < imageZoom.maxScale) {
+    imageZoom.scale = Math.min(imageZoom.scale + imageZoom.step, imageZoom.maxScale);
+    updateImageTransform();
+  }
+}
+
+function zoomOut() {
+  if (imageZoom.scale > imageZoom.minScale) {
+    imageZoom.scale = Math.max(imageZoom.scale - imageZoom.step, imageZoom.minScale);
+    
+    // Adjust translation if needed to keep image visible
+    const container = elements.imageContainer;
+    const img = elements.decryptedImage;
+    const containerRect = container.getBoundingClientRect();
+    const imgRect = img.getBoundingClientRect();
+    
+    const maxTranslateX = Math.max(0, (imgRect.width * imageZoom.scale - containerRect.width) / 2);
+    const maxTranslateY = Math.max(0, (imgRect.height * imageZoom.scale - containerRect.height) / 2);
+    
+    imageZoom.translateX = Math.max(-maxTranslateX, Math.min(maxTranslateX, imageZoom.translateX));
+    imageZoom.translateY = Math.max(-maxTranslateY, Math.min(maxTranslateY, imageZoom.translateY));
+    
+    updateImageTransform();
+  }
+}
+
+function zoomReset() {
+  resetImageZoom();
+}
+
+// Mouse wheel zoom
+function handleWheel(e) {
+  if (!elements.imageView.classList.contains('hidden')) {
+    e.preventDefault();
+    
+    if (e.deltaY < 0) {
+      zoomIn();
+    } else {
+      zoomOut();
+    }
+  }
+}
+
+// Touch pinch zoom
+function getTouchDistance(touches) {
+  const dx = touches[0].clientX - touches[1].clientX;
+  const dy = touches[0].clientY - touches[1].clientY;
+  return Math.sqrt(dx * dx + dy * dy);
+}
+
+function handleTouchStart(e) {
+  if (e.touches.length === 2) {
+    // Pinch zoom
+    imageZoom.lastTouchDistance = getTouchDistance(e.touches);
+  } else if (e.touches.length === 1) {
+    // Pan
+    imageZoom.isDragging = true;
+    imageZoom.startX = e.touches[0].clientX - imageZoom.translateX;
+    imageZoom.startY = e.touches[0].clientY - imageZoom.translateY;
+    elements.imageContainer.classList.add('dragging');
+  }
+}
+
+function handleTouchMove(e) {
+  e.preventDefault();
+  
+  if (e.touches.length === 2) {
+    // Pinch zoom
+    const distance = getTouchDistance(e.touches);
+    const delta = distance - imageZoom.lastTouchDistance;
+    
+    if (Math.abs(delta) > 5) {
+      const zoomDelta = delta * 0.01;
+      imageZoom.scale = Math.max(imageZoom.minScale, Math.min(imageZoom.maxScale, imageZoom.scale + zoomDelta));
+      imageZoom.lastTouchDistance = distance;
+      updateImageTransform();
+    }
+  } else if (e.touches.length === 1 && imageZoom.isDragging) {
+    // Pan
+    imageZoom.translateX = e.touches[0].clientX - imageZoom.startX;
+    imageZoom.translateY = e.touches[0].clientY - imageZoom.startY;
+    updateImageTransform();
+  }
+}
+
+function handleTouchEnd(e) {
+  if (e.touches.length < 2) {
+    imageZoom.lastTouchDistance = 0;
+  }
+  if (e.touches.length === 0) {
+    imageZoom.isDragging = false;
+    elements.imageContainer.classList.remove('dragging');
+  }
+}
+
+// Mouse drag
+function handleMouseDown(e) {
+  if (imageZoom.scale > 1) {
+    imageZoom.isDragging = true;
+    imageZoom.startX = e.clientX - imageZoom.translateX;
+    imageZoom.startY = e.clientY - imageZoom.translateY;
+    elements.imageContainer.classList.add('dragging');
+  }
+}
+
+function handleMouseMove(e) {
+  if (imageZoom.isDragging) {
+    imageZoom.translateX = e.clientX - imageZoom.startX;
+    imageZoom.translateY = e.clientY - imageZoom.startY;
+    updateImageTransform();
+  }
+}
+
+function handleMouseUp() {
+  imageZoom.isDragging = false;
+  elements.imageContainer.classList.remove('dragging');
+}
+
+// Zoom button events
+elements.zoomInBtn.addEventListener('click', zoomIn);
+elements.zoomOutBtn.addEventListener('click', zoomOut);
+elements.zoomResetBtn.addEventListener('click', zoomReset);
+
+// Wheel event for zoom
+elements.imageView.addEventListener('wheel', handleWheel, { passive: false });
+
+// Touch events for mobile
+elements.imageContainer.addEventListener('touchstart', handleTouchStart, { passive: false });
+elements.imageContainer.addEventListener('touchmove', handleTouchMove, { passive: false });
+elements.imageContainer.addEventListener('touchend', handleTouchEnd, { passive: false });
+
+// Mouse events for desktop drag
+elements.imageContainer.addEventListener('mousedown', handleMouseDown);
+document.addEventListener('mousemove', handleMouseMove);
+document.addEventListener('mouseup', handleMouseUp);
+
+// Prevent context menu on long press
+elements.imageContainer.addEventListener('contextmenu', (e) => {
+  if (imageZoom.scale > 1) {
+    e.preventDefault();
+  }
+});
 
 // ===== Session Key Management =====
 function updateSessionKeyUI() {
@@ -449,6 +632,7 @@ function closeViewer() {
   document.body.style.overflow = '';
   currentImage = null;
   elements.decryptedImage.src = '';
+  resetImageZoom();
 }
 
 elements.closeModal.addEventListener('click', closeViewer);
@@ -500,6 +684,7 @@ async function decryptImage() {
       elements.decryptForm.classList.add('hidden');
       elements.imageView.classList.remove('hidden');
       elements.lockBtn.style.display = 'block';
+      resetImageZoom();
     } else {
       showError(result.error || 'Decryption failed');
       // If using session key and it failed, show the key input
@@ -530,6 +715,7 @@ elements.lockBtn.addEventListener('click', () => {
   elements.decryptedImage.src = '';
   elements.decryptKey.value = '';
   elements.decryptKey.focus();
+  resetImageZoom();
 });
 
 // Delete button

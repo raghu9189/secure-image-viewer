@@ -204,7 +204,15 @@
           
           <!-- Decrypted Image View -->
           <div id="imageView" class="image-view hidden">
-            <img id="decryptedImage" src="" alt="Decrypted Image">
+            <div class="image-view-container" id="imageContainer">
+              <img id="decryptedImage" src="" alt="Decrypted Image">
+            </div>
+            <div class="zoom-controls">
+              <button class="zoom-btn" id="zoomInBtn" title="Zoom In">+</button>
+              <div class="zoom-info" id="zoomLevel">100%</div>
+              <button class="zoom-btn" id="zoomOutBtn" title="Zoom Out">−</button>
+              <button class="zoom-btn" id="zoomResetBtn" title="Reset Zoom">⟲</button>
+            </div>
           </div>
         </div>
         <div class="modal-footer">
