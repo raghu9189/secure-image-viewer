@@ -17,9 +17,10 @@ coverage/
 thumbs.db
 *.bak   
 
-# keep encrypted folder but ignore its contents
-encrypted/*
-!encrypted/.gitkeep
-# keep uploads folder but ignore its contents
+# add uploads folder to gitignore but keep the folder itself    
 uploads/*
 !uploads/.gitkeep
+
+# add encrypted folder to gitignore but keep the folder itself
+encrypted/*
+!encrypted/.gitkeep
