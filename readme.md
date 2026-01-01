@@ -71,6 +71,27 @@ A web application for encrypting and securely viewing images with password prote
 - **Key Derivation**: Your password is hashed using SHA-256 for consistent key generation
 - **No Plain Storage**: Original images are deleted immediately after encryption
 - **Server-Side Decryption**: Decryption happens on the server, images are sent as base64
+- **Single File Format**: Each encrypted image is stored as a single `.enc` file containing both metadata and encrypted data
+
+## 📦 File Format
+
+Each encrypted file (`.enc`) contains:
+1. **Metadata Length** (4 bytes): Size of the metadata JSON
+2. **Metadata** (variable): JSON containing original filename, mime type, size, and encryption date
+3. **IV** (16 bytes): Initialization vector for AES encryption
+4. **Encrypted Data** (variable): The actual encrypted image data
+
+This single-file format eliminates the need for separate `.json` metadata files.
+
+### Migrating from Old Format
+
+If you have existing encrypted files in the old format (separate `.enc` and `.json` files), run the migration script:
+
+```bash
+node migrate-files.js
+```
+
+This will automatically convert all old format files to the new single-file format.
 
 ## � Project Structure
 

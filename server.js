@@ -43,8 +43,8 @@ const upload = multer({
   }
 });
 
-// Encryption function
-function encryptFile(inputPath, outputPath, key) {
+// Encryption function - stores metadata + encrypted data in one file
+function encryptFile(inputPath, outputPath, key, metadata) {
   const algorithm = "aes-256-cbc";
   const keyHash = crypto.createHash("sha256").update(key).digest();
   const iv = crypto.randomBytes(16);
@@ -54,28 +54,58 @@ function encryptFile(inputPath, outputPath, key) {
   
   const encrypted = Buffer.concat([cipher.update(input), cipher.final()]);
   
-  // Store IV at the beginning of the file
-  const output = Buffer.concat([iv, encrypted]);
+  // Create file structure:
+  // [4 bytes: metadata length] [metadata JSON] [16 bytes: IV] [encrypted data]
+  const metadataJson = JSON.stringify(metadata);
+  const metadataBuffer = Buffer.from(metadataJson, 'utf8');
+  const metadataLength = Buffer.alloc(4);
+  metadataLength.writeUInt32BE(metadataBuffer.length, 0);
+  
+  const output = Buffer.concat([metadataLength, metadataBuffer, iv, encrypted]);
   fs.writeFileSync(outputPath, output);
   
   return true;
 }
 
-// Decryption function
+// Decryption function - extracts metadata and decrypts data from single file
 function decryptFile(inputPath, key) {
   const algorithm = "aes-256-cbc";
   const keyHash = crypto.createHash("sha256").update(key).digest();
   
   const fileContent = fs.readFileSync(inputPath);
   
-  // Extract IV from the beginning (first 16 bytes)
-  const iv = fileContent.subarray(0, 16);
-  const encrypted = fileContent.subarray(16);
+  // Extract metadata length (first 4 bytes)
+  const metadataLength = fileContent.readUInt32BE(0);
+  
+  // Extract metadata
+  const metadataBuffer = fileContent.subarray(4, 4 + metadataLength);
+  const metadata = JSON.parse(metadataBuffer.toString('utf8'));
+  
+  // Extract IV (16 bytes after metadata)
+  const ivStart = 4 + metadataLength;
+  const iv = fileContent.subarray(ivStart, ivStart + 16);
+  
+  // Extract encrypted data
+  const encrypted = fileContent.subarray(ivStart + 16);
   
   const decipher = crypto.createDecipheriv(algorithm, keyHash, iv);
   const decrypted = Buffer.concat([decipher.update(encrypted), decipher.final()]);
   
-  return decrypted;
+  return { decrypted, metadata };
+}
+
+// Read metadata from encrypted file without decrypting
+function readMetadata(inputPath) {
+  const fileContent = fs.readFileSync(inputPath);
+  
+  // Extract metadata length (first 4 bytes)
+  const metadataLength = fileContent.readUInt32BE(0);
+  
+  // Extract and parse metadata
+  const metadataBuffer = fileContent.subarray(4, 4 + metadataLength);
+  const metadata = JSON.parse(metadataBuffer.toString('utf8'));
+  
+  return metadata;
 }
 
 // API Routes
@@ -95,23 +125,21 @@ app.post("/api/encrypt", upload.single("image"), (req, res) => {
     }
     
     const originalName = name || req.file.originalname;
-    const encryptedFilename = `${uuidv4()}.enc`;
+    const fileId = uuidv4();
+    const encryptedFilename = `${fileId}.enc`;
     const encryptedPath = path.join(ENCRYPTED_DIR, encryptedFilename);
     
-    // Encrypt the file
-    encryptFile(req.file.path, encryptedPath, key);
-    
-    // Store metadata
+    // Prepare metadata
     const metadata = {
-      id: encryptedFilename.replace(".enc", ""),
+      id: fileId,
       originalName: originalName,
       mimeType: req.file.mimetype,
       size: req.file.size,
       encryptedAt: new Date().toISOString()
     };
     
-    const metadataPath = path.join(ENCRYPTED_DIR, `${metadata.id}.json`);
-    fs.writeFileSync(metadataPath, JSON.stringify(metadata, null, 2));
+    // Encrypt the file with metadata embedded
+    encryptFile(req.file.path, encryptedPath, key, metadata);
     
     // Delete original uploaded file
     fs.unlinkSync(req.file.path);
@@ -132,10 +160,10 @@ app.get("/api/images", (req, res) => {
   try {
     const files = fs.readdirSync(ENCRYPTED_DIR);
     const images = files
-      .filter(f => f.endsWith(".json"))
+      .filter(f => f.endsWith(".enc"))
       .map(f => {
-        const content = fs.readFileSync(path.join(ENCRYPTED_DIR, f), "utf-8");
-        return JSON.parse(content);
+        const filePath = path.join(ENCRYPTED_DIR, f);
+        return readMetadata(filePath);
       })
       .sort((a, b) => new Date(b.encryptedAt) - new Date(a.encryptedAt));
     
@@ -157,16 +185,13 @@ app.post("/api/decrypt/:id", (req, res) => {
     }
     
     const encryptedPath = path.join(ENCRYPTED_DIR, `${id}.enc`);
-    const metadataPath = path.join(ENCRYPTED_DIR, `${id}.json`);
     
-    if (!fs.existsSync(encryptedPath) || !fs.existsSync(metadataPath)) {
+    if (!fs.existsSync(encryptedPath)) {
       return res.status(404).json({ error: "Image not found" });
     }
     
-    const metadata = JSON.parse(fs.readFileSync(metadataPath, "utf-8"));
-    
     try {
-      const decrypted = decryptFile(encryptedPath, key);
+      const { decrypted, metadata } = decryptFile(encryptedPath, key);
       
       // Return as base64 data URL
       const base64 = decrypted.toString("base64");
@@ -191,10 +216,10 @@ app.delete("/api/images/:id", (req, res) => {
   try {
     const { id } = req.params;
     const encryptedPath = path.join(ENCRYPTED_DIR, `${id}.enc`);
-    const metadataPath = path.join(ENCRYPTED_DIR, `${id}.json`);
     
-    if (fs.existsSync(encryptedPath)) fs.unlinkSync(encryptedPath);
-    if (fs.existsSync(metadataPath)) fs.unlinkSync(metadataPath);
+    if (fs.existsSync(encryptedPath)) {
+      fs.unlinkSync(encryptedPath);
+    }
     
     res.json({ success: true, message: "Image deleted" });
   } catch (error) {
