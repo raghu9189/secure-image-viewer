@@ -88,10 +88,51 @@ This single-file format eliminates the need for separate `.json` metadata files.
 If you have existing encrypted files in the old format (separate `.enc` and `.json` files), run the migration script:
 
 ```bash
+npm run migrate
+# or
 node migrate-files.js
 ```
 
 This will automatically convert all old format files to the new single-file format.
+
+## 📦 Batch Encryption
+
+You can encrypt multiple images from a directory at once using the batch encryption script:
+
+```bash
+npm run batch-encrypt
+# or
+node batch-encrypt.js
+```
+
+**Features:**
+- Encrypt all images from a specified directory
+- Optional recursive scanning of subdirectories
+- Single encryption key for all images
+- Custom name prefix for batch naming
+- Detailed progress reporting
+- Optional JSON report generation
+
+**Interactive prompts:**
+1. Enter the source directory path
+2. Choose whether to scan subdirectories recursively
+3. Review the list of found images
+4. Enter and confirm encryption key
+5. Optionally set a custom name prefix
+6. Confirm and start encryption
+
+**Supported formats:** JPEG, PNG, GIF, WebP, BMP, HEIF/HEIC
+
+**Example workflow:**
+```bash
+$ node batch-encrypt.js
+Enter source directory path: /Users/john/Pictures/vacation
+Scan subdirectories recursively? (y/n) [n]: y
+Found 15 image(s)
+Enter encryption key: ********
+✅ Successfully encrypted: 15 file(s)
+```
+
 
 ## � Project Structure
 

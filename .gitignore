@@ -24,3 +24,7 @@ uploads/*
 # add encrypted folder to gitignore but keep the folder itself
 encrypted/*
 !encrypted/.gitkeep
+
+# add images folder to gitignore but keep the folder itself
+images/*
+!images/.gitkeep
