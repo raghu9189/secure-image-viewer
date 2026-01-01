@@ -3,6 +3,7 @@
 // State
 let images = [];
 let currentImage = null;
+let currentImageIndex = -1;
 let selectedFile = null;
 let sessionKey = null; // Session-wide encryption/decryption key
 
@@ -53,6 +54,11 @@ const elements = {
   zoomOutBtn: document.getElementById('zoomOutBtn'),
   zoomResetBtn: document.getElementById('zoomResetBtn'),
   zoomLevel: document.getElementById('zoomLevel'),
+  
+  // Carousel controls
+  prevImageBtn: document.getElementById('prevImageBtn'),
+  nextImageBtn: document.getElementById('nextImageBtn'),
+  imageCounter: document.getElementById('imageCounter'),
   
   // Toast
   toastContainer: document.getElementById('toastContainer'),
@@ -269,6 +275,61 @@ elements.imageContainer.addEventListener('contextmenu', (e) => {
     e.preventDefault();
   }
 });
+
+// ===== Carousel Swipe Support =====
+let carouselSwipe = {
+  startX: 0,
+  startY: 0,
+  endX: 0,
+  endY: 0,
+  isSwiping: false,
+  minSwipeDistance: 50
+};
+
+function handleCarouselTouchStart(e) {
+  // Only handle swipe when not zoomed
+  if (imageZoom.scale > 1) return;
+  
+  carouselSwipe.startX = e.touches[0].clientX;
+  carouselSwipe.startY = e.touches[0].clientY;
+  carouselSwipe.isSwiping = true;
+}
+
+function handleCarouselTouchMove(e) {
+  if (!carouselSwipe.isSwiping || imageZoom.scale > 1) return;
+  
+  carouselSwipe.endX = e.touches[0].clientX;
+  carouselSwipe.endY = e.touches[0].clientY;
+}
+
+function handleCarouselTouchEnd(e) {
+  if (!carouselSwipe.isSwiping || imageZoom.scale > 1) return;
+  
+  const deltaX = carouselSwipe.endX - carouselSwipe.startX;
+  const deltaY = carouselSwipe.endY - carouselSwipe.startY;
+  
+  // Check if horizontal swipe is greater than vertical (to avoid conflicts with vertical scroll)
+  if (Math.abs(deltaX) > Math.abs(deltaY) && Math.abs(deltaX) > carouselSwipe.minSwipeDistance) {
+    if (deltaX > 0) {
+      // Swipe right - show previous
+      showPreviousImage();
+    } else {
+      // Swipe left - show next
+      showNextImage();
+    }
+  }
+  
+  carouselSwipe.isSwiping = false;
+  carouselSwipe.startX = 0;
+  carouselSwipe.startY = 0;
+  carouselSwipe.endX = 0;
+  carouselSwipe.endY = 0;
+}
+
+// Add swipe listeners to image view
+elements.imageView.addEventListener('touchstart', handleCarouselTouchStart, { passive: true });
+elements.imageView.addEventListener('touchmove', handleCarouselTouchMove, { passive: true });
+elements.imageView.addEventListener('touchend', handleCarouselTouchEnd, { passive: true });
 
 // ===== Session Key Management =====
 function updateSessionKeyUI() {
@@ -597,10 +658,88 @@ function formatDate(dateStr) {
 
 elements.refreshBtn.addEventListener('click', loadImages);
 
+// ===== Carousel Navigation =====
+function updateCarouselControls() {
+  // Update counter
+  if (elements.imageCounter) {
+    elements.imageCounter.textContent = `${currentImageIndex + 1} / ${images.length}`;
+  }
+  
+  // Update button states
+  if (elements.prevImageBtn) {
+    elements.prevImageBtn.disabled = currentImageIndex <= 0;
+  }
+  if (elements.nextImageBtn) {
+    elements.nextImageBtn.disabled = currentImageIndex >= images.length - 1;
+  }
+}
+
+function navigateToImage(direction) {
+  const newIndex = currentImageIndex + direction;
+  
+  if (newIndex < 0 || newIndex >= images.length) {
+    return;
+  }
+  
+  currentImageIndex = newIndex;
+  currentImage = images[currentImageIndex];
+  
+  // Update UI
+  elements.modalTitle.textContent = currentImage.originalName;
+  elements.decryptKey.value = '';
+  elements.decryptError.classList.add('hidden');
+  elements.decryptedImage.src = '';
+  
+  // Reset zoom
+  resetImageZoom();
+  
+  // Check if image is already decrypted in view
+  const isImageVisible = !elements.imageView.classList.contains('hidden');
+  
+  if (isImageVisible) {
+    // If image view is visible, decrypt the new image
+    elements.decryptForm.classList.add('hidden');
+    elements.imageView.classList.remove('hidden');
+    elements.lockBtn.style.display = 'block';
+    
+    // Auto-decrypt with session key or show decrypt form
+    if (sessionKey) {
+      decryptImage();
+    } else {
+      // Show decrypt form for new image
+      elements.decryptForm.classList.remove('hidden');
+      elements.imageView.classList.add('hidden');
+      elements.lockBtn.style.display = 'none';
+      elements.decryptKey.focus();
+    }
+  }
+  
+  updateCarouselControls();
+}
+
+function showPreviousImage() {
+  navigateToImage(-1);
+}
+
+function showNextImage() {
+  navigateToImage(1);
+}
+
+// Carousel button event listeners
+if (elements.prevImageBtn) {
+  elements.prevImageBtn.addEventListener('click', showPreviousImage);
+}
+if (elements.nextImageBtn) {
+  elements.nextImageBtn.addEventListener('click', showNextImage);
+}
+
 // ===== Image Viewer Modal =====
 function openViewer(id) {
   currentImage = images.find(img => img.id === id);
   if (!currentImage) return;
+  
+  // Set current index
+  currentImageIndex = images.findIndex(img => img.id === id);
   
   elements.modalTitle.textContent = currentImage.originalName;
   elements.decryptKey.value = '';
@@ -609,6 +748,9 @@ function openViewer(id) {
   elements.imageView.classList.add('hidden');
   elements.lockBtn.style.display = 'none';
   elements.decryptedImage.src = '';
+  
+  // Update image counter and carousel buttons
+  updateCarouselControls();
   
   // Update decrypt form based on session key
   const hasSessionKey = !!sessionKey;
@@ -631,6 +773,7 @@ function closeViewer() {
   elements.viewerModal.classList.remove('show');
   document.body.style.overflow = '';
   currentImage = null;
+  currentImageIndex = -1;
   elements.decryptedImage.src = '';
   resetImageZoom();
 }
@@ -638,7 +781,7 @@ function closeViewer() {
 elements.closeModal.addEventListener('click', closeViewer);
 elements.viewerModal.querySelector('.modal-overlay').addEventListener('click', closeViewer);
 
-// Close on escape key
+// Close on escape key and handle arrow keys for carousel
 document.addEventListener('keydown', (e) => {
   if (e.key === 'Escape') {
     if (elements.viewerModal.classList.contains('show')) {
@@ -646,6 +789,17 @@ document.addEventListener('keydown', (e) => {
     }
     if (elements.sessionKeyModal.classList.contains('show')) {
       closeSessionKeyModal();
+    }
+  }
+  
+  // Carousel navigation with arrow keys
+  if (elements.viewerModal.classList.contains('show')) {
+    if (e.key === 'ArrowLeft') {
+      e.preventDefault();
+      showPreviousImage();
+    } else if (e.key === 'ArrowRight') {
+      e.preventDefault();
+      showNextImage();
     }
   }
 });

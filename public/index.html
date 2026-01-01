@@ -178,6 +178,7 @@
       <div class="modal-container">
         <div class="modal-header">
           <h3 id="modalTitle">View Image</h3>
+          <div class="image-counter" id="imageCounter">1 / 1</div>
           <button class="btn-close" id="closeModal">✕</button>
         </div>
         <div class="modal-body">
@@ -204,9 +205,21 @@
           
           <!-- Decrypted Image View -->
           <div id="imageView" class="image-view hidden">
+            <!-- Previous Button -->
+            <button class="carousel-btn carousel-prev" id="prevImageBtn" title="Previous Image">
+              <span>‹</span>
+            </button>
+            
             <div class="image-view-container" id="imageContainer">
               <img id="decryptedImage" src="" alt="Decrypted Image">
             </div>
+            
+            <!-- Next Button -->
+            <button class="carousel-btn carousel-next" id="nextImageBtn" title="Next Image">
+              <span>›</span>
+            </button>
+            
+            <!-- Zoom Controls -->
             <div class="zoom-controls">
               <button class="zoom-btn" id="zoomInBtn" title="Zoom In">+</button>
               <div class="zoom-info" id="zoomLevel">100%</div>
