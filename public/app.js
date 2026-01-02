@@ -362,6 +362,11 @@ function updateSessionKeyUI() {
     elements.sessionStatus.className = 'session-status inactive';
     elements.sessionStatus.textContent = 'No session key set';
   }
+  
+  // Reload gallery to show/hide thumbnails
+  if (images.length > 0) {
+    renderImages();
+  }
 }
 
 function openSessionKeyModal() {
@@ -625,7 +630,7 @@ function renderImages() {
   
   elements.imageGrid.innerHTML = images.map(img => `
     <div class="image-card" data-id="${img.id}">
-      <div class="image-placeholder">
+      <div class="image-placeholder" id="placeholder-${img.id}">
         <span class="lock-emoji">🔒</span>
       </div>
       <div class="image-info">
@@ -639,6 +644,34 @@ function renderImages() {
       </button>
     </div>
   `).join('');
+  
+  // Load thumbnails if session key is set
+  if (sessionKey) {
+    loadThumbnails();
+  }
+}
+
+// Load blurred thumbnails for all images
+async function loadThumbnails() {
+  for (const img of images) {
+    try {
+      const response = await fetch(`/api/thumbnail/${img.id}`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ key: sessionKey })
+      });
+      
+      if (response.ok) {
+        const result = await response.json();
+        const placeholder = document.getElementById(`placeholder-${img.id}`);
+        if (placeholder) {
+          placeholder.innerHTML = `<img src="${result.thumbnail}" alt="${img.originalName}" class="thumbnail-blur">`;
+        }
+      }
+    } catch (error) {
+      console.error(`Failed to load thumbnail for ${img.id}:`, error);
+    }
+  }
 }
 
 function formatFileSize(bytes) {

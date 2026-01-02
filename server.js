@@ -211,6 +211,43 @@ app.post("/api/decrypt/:id", (req, res) => {
   }
 });
 
+// Get blurred thumbnail (only with valid key)
+app.post("/api/thumbnail/:id", (req, res) => {
+  try {
+    const { id } = req.params;
+    const { key } = req.body;
+    
+    if (!key) {
+      return res.status(400).json({ error: "Key is required for thumbnail" });
+    }
+    
+    const encryptedPath = path.join(ENCRYPTED_DIR, `${id}.enc`);
+    
+    if (!fs.existsSync(encryptedPath)) {
+      return res.status(404).json({ error: "Image not found" });
+    }
+    
+    try {
+      const { decrypted, metadata } = decryptFile(encryptedPath, key);
+      
+      // Return as base64 data URL (will be blurred on client side)
+      const base64 = decrypted.toString("base64");
+      const dataUrl = `data:${metadata.mimeType};base64,${base64}`;
+      
+      res.json({ 
+        success: true, 
+        thumbnail: dataUrl,
+        metadata
+      });
+    } catch (decryptError) {
+      res.status(401).json({ error: "Invalid key" });
+    }
+  } catch (error) {
+    console.error("Thumbnail error:", error);
+    res.status(500).json({ error: "Failed to generate thumbnail" });
+  }
+});
+
 // Delete encrypted image
 app.delete("/api/images/:id", (req, res) => {
   try {
