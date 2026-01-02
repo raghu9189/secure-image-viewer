@@ -96,13 +96,31 @@
         <section id="gallery" class="tab-pane active">
           <div class="gallery-header">
             <h2>Encrypted Images</h2>
-            <button class="btn btn-refresh" id="refreshBtn">
-              <span>🔄</span> Refresh
-            </button>
+            <div class="gallery-header-actions">
+              <button class="btn btn-refresh" id="refreshBtn">
+                <span>🔄</span> Refresh
+              </button>
+            </div>
+          </div>
+          
+          <!-- Albums Toggle -->
+          <div class="view-toggle-container">
+            <label class="toggle-label">
+              <input type="checkbox" id="albumsToggle">
+              <span class="toggle-slider"></span>
+              <span class="toggle-text">📁 Albums View</span>
+            </label>
+          </div>
+          
+          <!-- Albums View -->
+          <div id="albumsView" class="albums-view hidden">
+            <div id="albumsGrid" class="albums-grid">
+              <!-- Albums will be loaded here -->
+            </div>
           </div>
           
           <!-- Search Bar -->
-          <div class="search-bar">
+          <div class="search-bar" id="searchBar">
             <div class="search-input-container">
               <input type="text" id="searchInput" placeholder="Search by tags (e.g., vacation, beach)..." class="search-input">
               <button class="btn btn-icon search-btn" id="searchBtn" title="Search">🔍</button>

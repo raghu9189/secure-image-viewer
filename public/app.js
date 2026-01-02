@@ -11,6 +11,11 @@ let showThumbnails = true; // Thumbnail preview toggle state
 let searchQuery = ''; // Current search query
 let allTags = []; // All available tags across images
 
+// Albums state
+let albums = [];
+let currentAlbum = null;
+let showAlbumsView = false;
+
 // Pagination state
 let currentPage = 1;
 const imagesPerPage = 10;
@@ -25,6 +30,12 @@ const elements = {
   imageGrid: document.getElementById('imageGrid'),
   emptyState: document.getElementById('emptyState'),
   refreshBtn: document.getElementById('refreshBtn'),
+  
+  // Albums
+  albumsToggle: document.getElementById('albumsToggle'),
+  albumsView: document.getElementById('albumsView'),
+  albumsGrid: document.getElementById('albumsGrid'),
+  searchBar: document.getElementById('searchBar'),
   
   // Search
   searchInput: document.getElementById('searchInput'),
@@ -962,10 +973,18 @@ function clearSearch() {
 // ===== Load Images =====
 async function loadImages() {
   try {
-    const response = await fetch('/api/images');
-    const result = await response.json();
+    if (currentAlbum) {
+      // Load images from specific album
+      const response = await fetch(`/api/albums/${currentAlbum}/images`);
+      const result = await response.json();
+      images = result.images || [];
+    } else {
+      // Load all images
+      const response = await fetch('/api/images');
+      const result = await response.json();
+      images = result.images || [];
+    }
     
-    images = result.images || [];
     extractAllTags(); // Extract tags after loading images
     currentPage = 1; // Reset to first page
     clearSearch(); // Clear any active search
@@ -975,6 +994,84 @@ async function loadImages() {
     showToast('Failed to load images', 'error');
   }
 }
+
+// ===== Albums Management =====
+async function loadAlbums() {
+  try {
+    const response = await fetch('/api/albums');
+    const result = await response.json();
+    albums = result.albums || [];
+    renderAlbums();
+  } catch (error) {
+    console.error('Failed to load albums:', error);
+    showToast('Failed to load albums', 'error');
+  }
+}
+
+function renderAlbums() {
+  if (albums.length === 0) {
+    elements.albumsGrid.innerHTML = '<p class="empty-albums">No albums found. Create folders in the encrypted directory to organize images into albums.</p>';
+    return;
+  }
+  
+  elements.albumsGrid.innerHTML = albums.map(album => `
+    <div class="album-card" onclick="openAlbum('${album.name}')">
+      <div class="album-icon">📁</div>
+      <div class="album-info">
+        <h3 class="album-name">${album.name === 'default' ? 'All Images' : album.name}</h3>
+        <p class="album-count">${album.imageCount} image${album.imageCount !== 1 ? 's' : ''}</p>
+      </div>
+    </div>
+  `).join('');
+}
+
+function openAlbum(albumName) {
+  currentAlbum = albumName === 'default' ? null : albumName;
+  showAlbumsView = false;
+  elements.albumsToggle.checked = false;
+  toggleAlbumsView();
+  loadImages();
+  
+  // Update header to show current album
+  const header = document.querySelector('.gallery-header h2');
+  if (albumName && albumName !== 'default') {
+    header.textContent = `Album: ${albumName}`;
+  } else {
+    header.textContent = 'Encrypted Images';
+  }
+}
+
+function toggleAlbumsView() {
+  showAlbumsView = elements.albumsToggle.checked;
+  
+  if (showAlbumsView) {
+    // Show albums view
+    elements.albumsView.classList.remove('hidden');
+    elements.searchBar.classList.add('hidden');
+    elements.imageGrid.classList.add('hidden');
+    elements.pagination.style.display = 'none';
+    if (elements.emptyState) elements.emptyState.classList.add('hidden');
+    loadAlbums();
+  } else {
+    // Show images view
+    elements.albumsView.classList.add('hidden');
+    elements.searchBar.classList.remove('hidden');
+    elements.imageGrid.classList.remove('hidden');
+    loadImages();
+  }
+}
+
+elements.albumsToggle.addEventListener('change', toggleAlbumsView);
+
+elements.refreshBtn.addEventListener('click', () => {
+  if (showAlbumsView) {
+    loadAlbums();
+  } else {
+    currentAlbum = null;
+    document.querySelector('.gallery-header h2').textContent = 'Encrypted Images';
+    loadImages();
+  }
+});
 
 function renderImages() {
   // Use filtered images if search is active, otherwise use all images

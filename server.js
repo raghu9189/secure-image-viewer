@@ -118,6 +118,30 @@ function readMetadata(inputPath) {
   return metadata;
 }
 
+// Find encrypted file by ID (searches in root and all album directories)
+function findEncryptedFile(id) {
+  const filename = `${id}.enc`;
+  
+  // Check root directory first
+  const rootPath = path.join(ENCRYPTED_DIR, filename);
+  if (fs.existsSync(rootPath)) {
+    return { path: rootPath, album: 'default' };
+  }
+  
+  // Check album directories
+  const items = fs.readdirSync(ENCRYPTED_DIR, { withFileTypes: true });
+  const directories = items.filter(item => item.isDirectory());
+  
+  for (const dir of directories) {
+    const albumPath = path.join(ENCRYPTED_DIR, dir.name, filename);
+    if (fs.existsSync(albumPath)) {
+      return { path: albumPath, album: dir.name };
+    }
+  }
+  
+  return null;
+}
+
 // API Routes
 
 // Upload and encrypt image
@@ -175,7 +199,9 @@ app.get("/api/images", (req, res) => {
       .filter(f => f.endsWith(".enc"))
       .map(f => {
         const filePath = path.join(ENCRYPTED_DIR, f);
-        return readMetadata(filePath);
+        const metadata = readMetadata(filePath);
+        metadata.album = 'default'; // Root directory images belong to 'default' album
+        return metadata;
       })
       .sort((a, b) => new Date(b.encryptedAt) - new Date(a.encryptedAt));
     
@@ -183,6 +209,81 @@ app.get("/api/images", (req, res) => {
   } catch (error) {
     console.error("List error:", error);
     res.status(500).json({ error: "Failed to list images" });
+  }
+});
+
+// Get list of albums (directories in encrypted folder)
+app.get("/api/albums", (req, res) => {
+  try {
+    const items = fs.readdirSync(ENCRYPTED_DIR, { withFileTypes: true });
+    
+    // Get all directories (albums)
+    const albums = items
+      .filter(item => item.isDirectory())
+      .map(dir => {
+        const albumPath = path.join(ENCRYPTED_DIR, dir.name);
+        const files = fs.readdirSync(albumPath).filter(f => f.endsWith('.enc'));
+        
+        return {
+          name: dir.name,
+          imageCount: files.length,
+          createdAt: fs.statSync(albumPath).birthtime.toISOString()
+        };
+      });
+    
+    // Add default album for root directory images
+    const rootFiles = items.filter(item => item.isFile() && item.name.endsWith('.enc'));
+    if (rootFiles.length > 0) {
+      albums.unshift({
+        name: 'default',
+        imageCount: rootFiles.length,
+        createdAt: new Date().toISOString()
+      });
+    }
+    
+    res.json({ albums });
+  } catch (error) {
+    console.error("Albums list error:", error);
+    res.status(500).json({ error: "Failed to list albums" });
+  }
+});
+
+// Get images from a specific album
+app.get("/api/albums/:albumName/images", (req, res) => {
+  try {
+    const { albumName } = req.params;
+    let albumPath;
+    
+    if (albumName === 'default') {
+      albumPath = ENCRYPTED_DIR;
+    } else {
+      albumPath = path.join(ENCRYPTED_DIR, albumName);
+      
+      // Verify album exists
+      if (!fs.existsSync(albumPath) || !fs.statSync(albumPath).isDirectory()) {
+        return res.status(404).json({ error: "Album not found" });
+      }
+    }
+    
+    // Get files from the album directory
+    const items = fs.readdirSync(albumPath, { withFileTypes: true });
+    const files = albumName === 'default' 
+      ? items.filter(item => item.isFile() && item.name.endsWith('.enc')).map(item => item.name)
+      : items.filter(item => item.name.endsWith('.enc')).map(item => item.name);
+    
+    const images = files
+      .map(f => {
+        const filePath = path.join(albumPath, f);
+        const metadata = readMetadata(filePath);
+        metadata.album = albumName;
+        return metadata;
+      })
+      .sort((a, b) => new Date(b.encryptedAt) - new Date(a.encryptedAt));
+    
+    res.json({ images, albumName });
+  } catch (error) {
+    console.error("Album images error:", error);
+    res.status(500).json({ error: "Failed to get album images" });
   }
 });
 
@@ -196,14 +297,15 @@ app.post("/api/decrypt/:id", (req, res) => {
       return res.status(400).json({ error: "Decryption key is required" });
     }
     
-    const encryptedPath = path.join(ENCRYPTED_DIR, `${id}.enc`);
+    const fileLocation = findEncryptedFile(id);
     
-    if (!fs.existsSync(encryptedPath)) {
+    if (!fileLocation) {
       return res.status(404).json({ error: "Image not found" });
     }
     
     try {
-      const { decrypted, metadata } = decryptFile(encryptedPath, key);
+      const { decrypted, metadata } = decryptFile(fileLocation.path, key);
+      metadata.album = fileLocation.album;
       
       // Return as base64 data URL
       const base64 = decrypted.toString("base64");
@@ -233,14 +335,15 @@ app.post("/api/thumbnail/:id", (req, res) => {
       return res.status(400).json({ error: "Key is required for thumbnail" });
     }
     
-    const encryptedPath = path.join(ENCRYPTED_DIR, `${id}.enc`);
+    const fileLocation = findEncryptedFile(id);
     
-    if (!fs.existsSync(encryptedPath)) {
+    if (!fileLocation) {
       return res.status(404).json({ error: "Image not found" });
     }
     
     try {
-      const { decrypted, metadata } = decryptFile(encryptedPath, key);
+      const { decrypted, metadata } = decryptFile(fileLocation.path, key);
+      metadata.album = fileLocation.album;
       
       // Return as base64 data URL (will be blurred on client side)
       const base64 = decrypted.toString("base64");
@@ -264,10 +367,10 @@ app.post("/api/thumbnail/:id", (req, res) => {
 app.delete("/api/images/:id", (req, res) => {
   try {
     const { id } = req.params;
-    const encryptedPath = path.join(ENCRYPTED_DIR, `${id}.enc`);
+    const fileLocation = findEncryptedFile(id);
     
-    if (fs.existsSync(encryptedPath)) {
-      fs.unlinkSync(encryptedPath);
+    if (fileLocation && fs.existsSync(fileLocation.path)) {
+      fs.unlinkSync(fileLocation.path);
     }
     
     res.json({ success: true, message: "Image deleted" });
@@ -291,15 +394,15 @@ app.post("/api/images/:id/tags", (req, res) => {
       return res.status(400).json({ error: "Tags must be an array" });
     }
     
-    const encryptedPath = path.join(ENCRYPTED_DIR, `${id}.enc`);
+    const fileLocation = findEncryptedFile(id);
     
-    if (!fs.existsSync(encryptedPath)) {
+    if (!fileLocation) {
       return res.status(404).json({ error: "Image not found" });
     }
     
     try {
       // Decrypt the file to verify key and get data
-      const { decrypted, metadata } = decryptFile(encryptedPath, key);
+      const { decrypted, metadata } = decryptFile(fileLocation.path, key);
       
       // Update metadata with new tags
       const updatedMetadata = {
@@ -309,7 +412,7 @@ app.post("/api/images/:id/tags", (req, res) => {
       };
       
       // Re-encrypt with updated metadata
-      const tempPath = encryptedPath + '.tmp';
+      const tempPath = fileLocation.path + '.tmp';
       const tempDecryptedPath = path.join(UPLOADS_DIR, `${id}.tmp`);
       
       // Write decrypted data temporarily
@@ -319,8 +422,8 @@ app.post("/api/images/:id/tags", (req, res) => {
       encryptFile(tempDecryptedPath, tempPath, key, updatedMetadata);
       
       // Replace old file with new one
-      fs.unlinkSync(encryptedPath);
-      fs.renameSync(tempPath, encryptedPath);
+      fs.unlinkSync(fileLocation.path);
+      fs.renameSync(tempPath, fileLocation.path);
       fs.unlinkSync(tempDecryptedPath);
       
       res.json({ 
