@@ -243,24 +243,6 @@
           <button class="btn-close" id="closeModal">✕</button>
         </div>
         <div class="modal-body">
-          <!-- Tags Section -->
-          <div class="image-tags-section">
-            <div class="tags-display">
-              <label>Tags:</label>
-              <div class="image-tags" id="imageTags">
-                <!-- Tags will be rendered here -->
-              </div>
-              <button class="btn btn-sm btn-secondary" id="editTagsBtn" style="display: none;">✏️ Edit</button>
-            </div>
-            <div class="tag-edit-container hidden" id="tagEditContainer">
-              <input type="text" id="tagEditInput" placeholder="Enter tags separated by commas" class="tag-edit-input">
-              <div class="tag-edit-actions">
-                <button class="btn btn-sm btn-primary" id="saveTagsBtn">💾 Save</button>
-                <button class="btn btn-sm btn-secondary" id="cancelTagsBtn">✕ Cancel</button>
-              </div>
-            </div>
-          </div>
-          
           <!-- Decrypt Form -->
           <div id="decryptForm" class="decrypt-section">
             <div class="lock-icon">🔒</div>
@@ -305,11 +287,53 @@
               <button class="zoom-btn" id="zoomOutBtn" title="Zoom Out">−</button>
               <button class="zoom-btn" id="zoomResetBtn" title="Reset Zoom">⟲</button>
             </div>
+            
+            <!-- Download Button -->
+            <button class="btn-download-viewer" id="downloadBtn" style="display: none;" title="Download Image">
+              📥 
+            </button>
           </div>
         </div>
-        <div class="modal-footer">
-          <button class="btn btn-danger" id="deleteBtn">🗑️ Delete</button>
-          <button class="btn btn-secondary" id="lockBtn" style="display: none;">🔒 Lock</button>
+      </div>
+    </div>
+
+    <!-- Image Options Modal -->
+    <div class="modal" id="optionsModal">
+      <div class="modal-overlay"></div>
+      <div class="modal-container modal-small">
+        <div class="modal-header">
+          <h3 id="optionsModalTitle">Image Options</h3>
+          <button class="btn-close" id="closeOptionsModal">✕</button>
+        </div>
+        <div class="modal-body">
+          <!-- Tags Section -->
+          <div class="options-section">
+            <h4>Tags</h4>
+            <div class="tags-display">
+              <div class="image-tags" id="optionsImageTags">
+                <!-- Tags will be rendered here -->
+              </div>
+            </div>
+            <div class="tag-edit-container" id="optionsTagEditContainer">
+              <input type="text" id="optionsTagEditInput" placeholder="Enter tags separated by commas" class="tag-edit-input">
+              <div class="tag-edit-actions">
+                <button class="btn btn-sm btn-primary" id="optionsSaveTagsBtn">💾 Save Tags</button>
+              </div>
+            </div>
+          </div>
+
+          <!-- Actions Section -->
+          <div class="options-section">
+            <h4>Actions</h4>
+            <div class="options-actions">
+              <button class="btn btn-block btn-secondary" id="optionsLockBtn">
+                🔒 Lock Image
+              </button>
+              <button class="btn btn-block btn-danger" id="optionsDeleteBtn">
+                🗑️ Delete Image
+              </button>
+            </div>
+          </div>
         </div>
       </div>
     </div>

@@ -75,16 +75,7 @@ const elements = {
   imageView: document.getElementById('imageView'),
   imageContainer: document.getElementById('imageContainer'),
   decryptedImage: document.getElementById('decryptedImage'),
-  deleteBtn: document.getElementById('deleteBtn'),
-  lockBtn: document.getElementById('lockBtn'),
-  
-  // Tag management in modal
-  imageTags: document.getElementById('imageTags'),
-  editTagsBtn: document.getElementById('editTagsBtn'),
-  tagEditContainer: document.getElementById('tagEditContainer'),
-  tagEditInput: document.getElementById('tagEditInput'),
-  saveTagsBtn: document.getElementById('saveTagsBtn'),
-  cancelTagsBtn: document.getElementById('cancelTagsBtn'),
+  downloadBtn: document.getElementById('downloadBtn'),
   
   // Zoom controls
   zoomInBtn: document.getElementById('zoomInBtn'),
@@ -118,7 +109,18 @@ const elements = {
   removeSessionKey: document.getElementById('removeSessionKey'),
   sessionStatus: document.getElementById('sessionStatus'),
   sessionBanner: document.getElementById('sessionBanner'),
-  clearSessionKeyBtn: document.getElementById('clearSessionKeyBtn')
+  clearSessionKeyBtn: document.getElementById('clearSessionKeyBtn'),
+  
+  // Options Modal
+  optionsModal: document.getElementById('optionsModal'),
+  closeOptionsModal: document.getElementById('closeOptionsModal'),
+  optionsModalTitle: document.getElementById('optionsModalTitle'),
+  optionsImageTags: document.getElementById('optionsImageTags'),
+  optionsTagEditContainer: document.getElementById('optionsTagEditContainer'),
+  optionsTagEditInput: document.getElementById('optionsTagEditInput'),
+  optionsSaveTagsBtn: document.getElementById('optionsSaveTagsBtn'),
+  optionsLockBtn: document.getElementById('optionsLockBtn'),
+  optionsDeleteBtn: document.getElementById('optionsDeleteBtn')
 };
 
 // ===== Theme Management =====
@@ -1016,6 +1018,14 @@ function renderImages() {
           </div>
         ` : ''}
       </div>
+      <button class="btn-options" onclick="openOptionsModal('${img.id}')" title="Options">
+        ⋮
+      </button>
+      ${sessionKey ? `
+        <button class="btn-download" onclick="downloadImage('${img.id}')" title="Download">
+          📥
+        </button>
+      ` : ''}
       <button class="btn btn-view" onclick="openViewer('${img.id}')">
         👁️ View
       </button>
@@ -1212,7 +1222,6 @@ function navigateToImage(direction) {
     // If image view is visible, decrypt the new image
     elements.decryptForm.classList.add('hidden');
     elements.imageView.classList.remove('hidden');
-    elements.lockBtn.style.display = 'block';
     
     // Auto-decrypt with session key or show decrypt form
     if (sessionKey) {
@@ -1221,7 +1230,6 @@ function navigateToImage(direction) {
       // Show decrypt form for new image
       elements.decryptForm.classList.remove('hidden');
       elements.imageView.classList.add('hidden');
-      elements.lockBtn.style.display = 'none';
       elements.decryptKey.focus();
     }
   }
@@ -1258,21 +1266,7 @@ function openViewer(id) {
   elements.decryptError.classList.add('hidden');
   elements.decryptForm.classList.remove('hidden');
   elements.imageView.classList.add('hidden');
-  elements.lockBtn.style.display = 'none';
   elements.decryptedImage.src = '';
-  
-  // Display tags
-  if (elements.imageTags) {
-    renderTagBadges(currentImage.tags || [], 'imageTags');
-    elements.tagEditContainer.style.display = 'none';
-    elements.tagEditContainer.classList.add('hidden');
-    elements.imageTags.style.display = 'block';
-    
-    // Show/hide edit button based on session key
-    if (elements.editTagsBtn) {
-      elements.editTagsBtn.style.display = sessionKey ? 'inline-block' : 'none';
-    }
-  }
   
   // Update image counter and carousel buttons
   updateCarouselControls();
@@ -1284,6 +1278,11 @@ function openViewer(id) {
   
   elements.viewerModal.classList.add('show');
   document.body.style.overflow = 'hidden';
+  
+  // Show/hide download button based on session key
+  if (elements.downloadBtn) {
+    elements.downloadBtn.style.display = hasSessionKey ? 'flex' : 'none';
+  }
   
   // If session key is set, auto-decrypt
   if (hasSessionKey) {
@@ -1335,6 +1334,15 @@ elements.decryptKey.addEventListener('keypress', (e) => {
   if (e.key === 'Enter') decryptImage();
 });
 
+// Download button in viewer
+if (elements.downloadBtn) {
+  elements.downloadBtn.addEventListener('click', () => {
+    if (currentImage) {
+      downloadImage(currentImage.id);
+    }
+  });
+}
+
 async function decryptImage() {
   if (!currentImage) return;
   
@@ -1362,7 +1370,6 @@ async function decryptImage() {
       elements.decryptedImage.src = result.image;
       elements.decryptForm.classList.add('hidden');
       elements.imageView.classList.remove('hidden');
-      elements.lockBtn.style.display = 'block';
       resetImageZoom();
     } else {
       showError(result.error || 'Decryption failed');
@@ -1386,33 +1393,162 @@ function showError(message) {
   elements.decryptError.classList.remove('hidden');
 }
 
-// Lock button
-elements.lockBtn.addEventListener('click', () => {
-  elements.decryptForm.classList.remove('hidden');
-  elements.imageView.classList.add('hidden');
-  elements.lockBtn.style.display = 'none';
-  elements.decryptedImage.src = '';
-  elements.decryptKey.value = '';
-  elements.decryptKey.focus();
-  resetImageZoom();
-});
-
-// Delete button
-elements.deleteBtn.addEventListener('click', async () => {
-  if (!currentImage) return;
+// ===== Download Image =====
+async function downloadImage(imageId) {
+  if (!sessionKey) {
+    showToast('Session key required to download image', 'error');
+    return;
+  }
   
-  if (!confirm('Are you sure you want to delete this encrypted image? This cannot be undone.')) {
+  const image = images.find(img => img.id === imageId);
+  if (!image) {
+    showToast('Image not found', 'error');
     return;
   }
   
   try {
-    const response = await fetch(`/api/images/${currentImage.id}`, {
+    showToast('Decrypting and preparing download...', 'info');
+    
+    const response = await fetch(`/api/decrypt/${imageId}`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ key: sessionKey })
+    });
+    
+    if (!response.ok) {
+      const result = await response.json();
+      showToast(result.error || 'Failed to decrypt image', 'error');
+      return;
+    }
+    
+    const result = await response.json();
+    
+    // Convert base64 to blob
+    const base64Data = result.image.split(',')[1];
+    const byteCharacters = atob(base64Data);
+    const byteNumbers = new Array(byteCharacters.length);
+    for (let i = 0; i < byteCharacters.length; i++) {
+      byteNumbers[i] = byteCharacters.charCodeAt(i);
+    }
+    const byteArray = new Uint8Array(byteNumbers);
+    const blob = new Blob([byteArray], { type: 'image/jpeg' });
+    
+    // Create download link
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement('a');
+    a.href = url;
+    a.download = image.originalName || 'image.jpg';
+    document.body.appendChild(a);
+    a.click();
+    document.body.removeChild(a);
+    URL.revokeObjectURL(url);
+    
+    showToast('Image downloaded successfully', 'success');
+  } catch (error) {
+    console.error('Download error:', error);
+    showToast('Failed to download image', 'error');
+  }
+}
+
+// ===== Options Modal =====
+let optionsImageId = null;
+
+function openOptionsModal(id) {
+  const image = images.find(img => img.id === id);
+  if (!image) return;
+  
+  optionsImageId = id;
+  elements.optionsModalTitle.textContent = image.originalName;
+  
+  // Display tags
+  renderTagBadges(image.tags || [], 'optionsImageTags');
+  elements.optionsTagEditInput.value = (image.tags || []).join(', ');
+  
+  // Show/hide lock button based on whether image is decrypted
+  const isDecrypted = currentImage && currentImage.id === id && !elements.imageView.classList.contains('hidden');
+  elements.optionsLockBtn.style.display = isDecrypted ? 'block' : 'none';
+  
+  elements.optionsModal.classList.add('show');
+  document.body.style.overflow = 'hidden';
+}
+
+function closeOptionsModal() {
+  elements.optionsModal.classList.remove('show');
+  document.body.style.overflow = '';
+  optionsImageId = null;
+}
+
+elements.closeOptionsModal.addEventListener('click', closeOptionsModal);
+elements.optionsModal.querySelector('.modal-overlay').addEventListener('click', closeOptionsModal);
+
+// Save tags from options modal
+elements.optionsSaveTagsBtn.addEventListener('click', async () => {
+  if (!optionsImageId) return;
+  
+  const tags = parseTags(elements.optionsTagEditInput.value);
+  
+  if (!sessionKey) {
+    showToast('Session key required to update tags', 'error');
+    return;
+  }
+  
+  const success = await updateImageTags(optionsImageId, tags);
+  
+  if (success) {
+    // Update display
+    renderTagBadges(tags, 'optionsImageTags');
+    
+    // Refresh gallery to show updated tags
+    renderImages();
+    
+    // If this is the current image in viewer, update its tags too
+    if (currentImage && currentImage.id === optionsImageId) {
+      currentImage.tags = tags;
+    }
+    
+    showToast('Tags updated successfully', 'success');
+  }
+});
+
+// Lock button from options
+elements.optionsLockBtn.addEventListener('click', () => {
+  if (currentImage && currentImage.id === optionsImageId) {
+    elements.decryptForm.classList.remove('hidden');
+    elements.imageView.classList.add('hidden');
+    elements.decryptedImage.src = '';
+    elements.decryptKey.value = '';
+    resetImageZoom();
+    
+    closeOptionsModal();
+    showToast('Image locked', 'info');
+  }
+});
+
+// Delete button from options
+elements.optionsDeleteBtn.addEventListener('click', async () => {
+  if (!optionsImageId) return;
+  
+  const image = images.find(img => img.id === optionsImageId);
+  if (!image) return;
+  
+  if (!confirm(`Are you sure you want to delete "${image.originalName}"? This cannot be undone.`)) {
+    return;
+  }
+  
+  try {
+    const response = await fetch(`/api/images/${optionsImageId}`, {
       method: 'DELETE'
     });
     
     if (response.ok) {
       showToast('Image deleted successfully', 'success');
-      closeViewer();
+      closeOptionsModal();
+      
+      // If the deleted image is currently open in viewer, close it
+      if (currentImage && currentImage.id === optionsImageId) {
+        closeViewer();
+      }
+      
       loadImages();
     } else {
       const result = await response.json();
@@ -1471,83 +1607,6 @@ if (elements.imageTagsInput) {
   });
 }
 
-// Tag editing in viewer modal
-if (elements.editTagsBtn) {
-  elements.editTagsBtn.addEventListener('click', () => {
-    console.log('Edit tags button clicked');
-    console.log('Session key:', sessionKey ? 'exists' : 'missing');
-    console.log('Current image:', currentImage);
-    
-    if (!sessionKey) {
-      showToast('Session key required to edit tags', 'error');
-      return;
-    }
-    
-    if (!currentImage) {
-      showToast('No image selected', 'error');
-      return;
-    }
-    
-    // Show edit mode
-    elements.imageTags.style.display = 'none';
-    elements.editTagsBtn.style.display = 'none';
-    elements.tagEditContainer.style.display = 'block';
-    elements.tagEditContainer.classList.remove('hidden');
-    
-    // Set current tags
-    const currentTags = currentImage.tags || [];
-    elements.tagEditInput.value = currentTags.join(', ');
-    elements.tagEditInput.focus();
-    
-    console.log('Edit mode activated with tags:', currentTags);
-  });
-}
-
-if (elements.saveTagsBtn) {
-  elements.saveTagsBtn.addEventListener('click', async () => {
-    console.log('Save tags button clicked');
-    console.log('Tag input value:', elements.tagEditInput.value);
-    
-    const tags = parseTags(elements.tagEditInput.value);
-    console.log('Parsed tags:', tags);
-    console.log('Current image ID:', currentImage?.id);
-    
-    if (!currentImage) {
-      showToast('No image selected', 'error');
-      return;
-    }
-    
-    const success = await updateImageTags(currentImage.id, tags);
-    console.log('Update result:', success);
-    
-    if (success) {
-      // Update display
-      renderTagBadges(tags, 'imageTags');
-      
-      // Hide edit mode
-      elements.tagEditContainer.style.display = 'none';
-      elements.tagEditContainer.classList.add('hidden');
-      elements.imageTags.style.display = 'block';
-      elements.editTagsBtn.style.display = 'inline-block';
-      
-      // Refresh gallery to show updated tags
-      renderImages();
-    }
-  });
-}
-
-if (elements.cancelTagsBtn) {
-  elements.cancelTagsBtn.addEventListener('click', () => {
-    console.log('Cancel tags button clicked');
-    
-    // Hide edit mode
-    elements.tagEditContainer.style.display = 'none';
-    elements.tagEditContainer.classList.add('hidden');
-    elements.imageTags.style.display = 'block';
-    elements.editTagsBtn.style.display = 'inline-block';
-  });
-}
-
 // ===== Initialize =====
 document.addEventListener('DOMContentLoaded', () => {
   initTheme();
@@ -1559,4 +1618,6 @@ document.addEventListener('DOMContentLoaded', () => {
 // Expose to window for onclick handlers
 window.switchTab = switchTab;
 window.openViewer = openViewer;
+window.openOptionsModal = openOptionsModal;
 window.selectSuggestion = selectSuggestion;
+window.downloadImage = downloadImage;

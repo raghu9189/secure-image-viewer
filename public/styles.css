@@ -446,6 +446,71 @@ body {
   opacity: 1;
 }
 
+.image-card .btn-options {
+  position: absolute;
+  top: 0.5rem;
+  right: 0.5rem;
+  z-index: 3;
+  opacity: 0;
+  transition: opacity 0.2s ease;
+  pointer-events: all;
+  padding: 0.5rem;
+  font-size: 1.25rem;
+  font-weight: 500;
+  border-radius: 50%;
+  width: 2.5rem;
+  height: 2.5rem;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background: rgba(0, 0, 0, 0.7);
+  color: white;
+  border: none;
+  cursor: pointer;
+}
+
+.image-card:hover .btn-options {
+  opacity: 1;
+}
+
+.image-card .btn-options:hover {
+  background: rgba(0, 0, 0, 0.9);
+  transform: scale(1.1);
+}
+
+/* Download button in image card */
+.image-card .btn-download {
+  position: absolute;
+  top: 0.5rem;
+  right: 3.5rem;
+  z-index: 3;
+  opacity: 0;
+  transition: opacity 0.2s ease;
+  pointer-events: all;
+  padding: 0.5rem;
+  font-size: 1.25rem;
+  font-weight: 500;
+  border-radius: 50%;
+  width: 2.5rem;
+  height: 2.5rem;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background: rgba(59, 130, 246, 0.9);
+  color: white;
+  border: none;
+  cursor: pointer;
+}
+
+.image-card:hover .btn-download {
+  opacity: 1;
+}
+
+.image-card .btn-download:hover {
+  background: rgba(37, 99, 235, 1);
+  transform: scale(1.1);
+}
+
 /* ===== Pagination ===== */
 .pagination {
   display: flex;
@@ -973,6 +1038,10 @@ input:focus {
   transform: scale(1);
 }
 
+.modal-small {
+  max-width: 450px;
+}
+
 .modal-header {
   display: flex;
   justify-content: space-between;
@@ -1099,6 +1168,35 @@ input:focus {
 .tag-edit-actions {
   display: flex;
   gap: 0.5rem;
+}
+
+/* ===== Options Modal ===== */
+.options-section {
+  padding: 1.5rem 0;
+  border-bottom: 1px solid var(--border);
+}
+
+.options-section:last-child {
+  border-bottom: none;
+}
+
+.options-section h4 {
+  font-size: 0.875rem;
+  font-weight: 600;
+  color: var(--text-secondary);
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+  margin-bottom: 1rem;
+}
+
+.options-actions {
+  display: flex;
+  flex-direction: column;
+  gap: 0.75rem;
+}
+
+.options-actions .btn {
+  justify-content: flex-start;
 }
 
 .modal-footer {
@@ -1240,6 +1338,39 @@ input:focus {
   user-select: none;
 }
 
+/* Download Button in Viewer */
+.btn-download-viewer {
+  position: absolute;
+  bottom: 1.5rem;
+  right: 1.5rem;
+  z-index: 10;
+  padding: 0.75rem 1.25rem;
+  background: rgba(59, 130, 246, 0.95);
+  color: white;
+  border: none;
+  border-radius: var(--radius-lg);
+  font-size: 1rem;
+  font-weight: 600;
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  box-shadow: var(--shadow-lg);
+  transition: var(--transition);
+  user-select: none;
+  -webkit-tap-highlight-color: transparent;
+}
+
+.btn-download-viewer:hover {
+  background: rgba(37, 99, 235, 1);
+  transform: translateY(-2px);
+  box-shadow: 0 8px 16px rgba(0, 0, 0, 0.2);
+}
+
+.btn-download-viewer:active {
+  transform: translateY(0);
+}
+
 /* Mobile optimizations */
 @media (max-width: 640px) {
   .zoom-controls {
@@ -1271,6 +1402,13 @@ input:focus {
   
   .image-view img {
     max-height: 50vh;
+  }
+  
+  .btn-download-viewer {
+    bottom: 1rem;
+    right: 1rem;
+    padding: 0.625rem 1rem;
+    font-size: 0.875rem;
   }
 }
 
