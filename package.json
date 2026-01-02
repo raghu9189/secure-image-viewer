@@ -1,21 +1,20 @@
 {
   "name": "secure-image-viewer",
-  "version": "1.0.0",
-  "description": "A secure image viewer with encryption/decryption support",
-  "main": "server.js",
+  "version": "2.0.0",
+  "description": "A secure image viewer with encryption/decryption support - Zero dependencies, pure Node.js",
+  "main": "server-zero-dep.js",
   "scripts": {
     "test": "echo \"Error: no test specified\" && exit 1",
-    "start": "node server.js",
+    "start": "node server-zero-dep.js",
+    "start:old": "node server.js",
     "batch-encrypt": "node batch-encrypt.js",
     "migrate": "node migrate-files.js"
   },
-  "keywords": ["encryption", "images", "secure", "viewer"],
+  "keywords": ["encryption", "images", "secure", "viewer", "zero-dependencies", "nodejs"],
   "author": "",
   "license": "ISC",
   "type": "commonjs",
-  "dependencies": {
-    "express": "^5.2.1",
-    "multer": "^1.4.5-lts.1",
-    "uuid": "^9.0.0"
+  "engines": {
+    "node": ">=14.0.0"
   }
 }
