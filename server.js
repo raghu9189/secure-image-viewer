@@ -81,6 +81,11 @@ function decryptFile(inputPath, key) {
   const metadataBuffer = fileContent.subarray(4, 4 + metadataLength);
   const metadata = JSON.parse(metadataBuffer.toString('utf8'));
   
+  // Initialize tags array if it doesn't exist (for old encrypted images)
+  if (!metadata.tags) {
+    metadata.tags = [];
+  }
+  
   // Extract IV (16 bytes after metadata)
   const ivStart = 4 + metadataLength;
   const iv = fileContent.subarray(ivStart, ivStart + 16);
@@ -104,6 +109,11 @@ function readMetadata(inputPath) {
   // Extract and parse metadata
   const metadataBuffer = fileContent.subarray(4, 4 + metadataLength);
   const metadata = JSON.parse(metadataBuffer.toString('utf8'));
+  
+  // Initialize tags array if it doesn't exist (for old encrypted images)
+  if (!metadata.tags) {
+    metadata.tags = [];
+  }
   
   return metadata;
 }
@@ -130,12 +140,14 @@ app.post("/api/encrypt", upload.single("image"), (req, res) => {
     const encryptedPath = path.join(ENCRYPTED_DIR, encryptedFilename);
     
     // Prepare metadata
+    const tags = req.body.tags ? JSON.parse(req.body.tags) : [];
     const metadata = {
       id: fileId,
       originalName: originalName,
       mimeType: req.file.mimetype,
       size: req.file.size,
-      encryptedAt: new Date().toISOString()
+      encryptedAt: new Date().toISOString(),
+      tags: tags
     };
     
     // Encrypt the file with metadata embedded
@@ -265,6 +277,66 @@ app.delete("/api/images/:id", (req, res) => {
   }
 });
 
+// Update tags for an image
+app.post("/api/images/:id/tags", (req, res) => {
+  try {
+    const { id } = req.params;
+    const { key, tags } = req.body;
+    
+    if (!key) {
+      return res.status(400).json({ error: "Key is required to update tags" });
+    }
+    
+    if (!Array.isArray(tags)) {
+      return res.status(400).json({ error: "Tags must be an array" });
+    }
+    
+    const encryptedPath = path.join(ENCRYPTED_DIR, `${id}.enc`);
+    
+    if (!fs.existsSync(encryptedPath)) {
+      return res.status(404).json({ error: "Image not found" });
+    }
+    
+    try {
+      // Decrypt the file to verify key and get data
+      const { decrypted, metadata } = decryptFile(encryptedPath, key);
+      
+      // Update metadata with new tags
+      const updatedMetadata = {
+        ...metadata,
+        tags: tags,
+        updatedAt: new Date().toISOString()
+      };
+      
+      // Re-encrypt with updated metadata
+      const tempPath = encryptedPath + '.tmp';
+      const tempDecryptedPath = path.join(UPLOADS_DIR, `${id}.tmp`);
+      
+      // Write decrypted data temporarily
+      fs.writeFileSync(tempDecryptedPath, decrypted);
+      
+      // Encrypt with new metadata
+      encryptFile(tempDecryptedPath, tempPath, key, updatedMetadata);
+      
+      // Replace old file with new one
+      fs.unlinkSync(encryptedPath);
+      fs.renameSync(tempPath, encryptedPath);
+      fs.unlinkSync(tempDecryptedPath);
+      
+      res.json({ 
+        success: true, 
+        message: "Tags updated successfully",
+        metadata: updatedMetadata
+      });
+    } catch (decryptError) {
+      res.status(401).json({ error: "Invalid key" });
+    }
+  } catch (error) {
+    console.error("Update tags error:", error);
+    res.status(500).json({ error: "Failed to update tags" });
+  }
+});
+
 app.listen(PORT, () =>
-  console.log(`� Secure Image Viewer running on http://localhost:${PORT}`)
+  console.log(`🔐 Secure Image Viewer running on http://localhost:${PORT}`)
 );

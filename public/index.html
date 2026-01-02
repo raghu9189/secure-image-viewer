@@ -101,6 +101,16 @@
             </button>
           </div>
           
+          <!-- Search Bar -->
+          <div class="search-bar">
+            <div class="search-input-container">
+              <input type="text" id="searchInput" placeholder="Search by tags (e.g., vacation, beach)..." class="search-input">
+              <button class="btn btn-icon search-btn" id="searchBtn" title="Search">🔍</button>
+              <button class="btn btn-icon clear-search-btn hidden" id="clearSearchBtn" title="Clear search">✕</button>
+            </div>
+            <div class="search-results-info hidden" id="searchResultsInfo"></div>
+          </div>
+          
           <div id="imageGrid" class="image-grid">
             <!-- Images will be loaded here -->
           </div>
@@ -170,6 +180,24 @@
                 <input type="text" id="imageName" placeholder="Enter a name for your image">
               </div>
 
+              <!-- Tags -->
+              <div class="form-group">
+                <label for="imageTagsInput">Tags (optional)</label>
+                <input type="text" id="imageTagsInput" placeholder="Enter tags separated by commas (e.g., nature, travel, sunset)">
+                <small>Tags help you organize and search your images</small>
+                <div class="tag-suggestions" id="tagSuggestions"></div>
+              </div>
+
+              <!-- Compression Toggle -->
+              <div class="form-group">
+                <label class="toggle-label">
+                  <input type="checkbox" id="compressionToggle" checked>
+                  <span class="toggle-slider"></span>
+                  <span class="toggle-text">Enable Image Compression (70% Quality)</span>
+                </label>
+                <small>Reduces file size significantly with minimal quality loss. Recommended for faster encryption and storage.</small>
+              </div>
+
               <!-- Encryption Key -->
               <div class="form-group" id="encryptKeyGroup">
                 <label for="encryptKey">Encryption Key *</label>
@@ -215,6 +243,24 @@
           <button class="btn-close" id="closeModal">✕</button>
         </div>
         <div class="modal-body">
+          <!-- Tags Section -->
+          <div class="image-tags-section">
+            <div class="tags-display">
+              <label>Tags:</label>
+              <div class="image-tags" id="imageTags">
+                <!-- Tags will be rendered here -->
+              </div>
+              <button class="btn btn-sm btn-secondary" id="editTagsBtn" style="display: none;">✏️ Edit</button>
+            </div>
+            <div class="tag-edit-container hidden" id="tagEditContainer">
+              <input type="text" id="tagEditInput" placeholder="Enter tags separated by commas" class="tag-edit-input">
+              <div class="tag-edit-actions">
+                <button class="btn btn-sm btn-primary" id="saveTagsBtn">💾 Save</button>
+                <button class="btn btn-sm btn-secondary" id="cancelTagsBtn">✕ Cancel</button>
+              </div>
+            </div>
+          </div>
+          
           <!-- Decrypt Form -->
           <div id="decryptForm" class="decrypt-section">
             <div class="lock-icon">🔒</div>

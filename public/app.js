@@ -2,15 +2,18 @@
 
 // State
 let images = [];
+let filteredImages = []; // For search/filter results
 let currentImage = null;
 let currentImageIndex = -1;
 let selectedFile = null;
 let sessionKey = null; // Session-wide encryption/decryption key
 let showThumbnails = true; // Thumbnail preview toggle state
+let searchQuery = ''; // Current search query
+let allTags = []; // All available tags across images
 
 // Pagination state
 let currentPage = 1;
-const imagesPerPage = 20;
+const imagesPerPage = 10;
 
 // DOM Elements
 const elements = {
@@ -22,6 +25,12 @@ const elements = {
   imageGrid: document.getElementById('imageGrid'),
   emptyState: document.getElementById('emptyState'),
   refreshBtn: document.getElementById('refreshBtn'),
+  
+  // Search
+  searchInput: document.getElementById('searchInput'),
+  searchBtn: document.getElementById('searchBtn'),
+  clearSearchBtn: document.getElementById('clearSearchBtn'),
+  searchResultsInfo: document.getElementById('searchResultsInfo'),
   
   // Pagination
   pagination: document.getElementById('pagination'),
@@ -43,6 +52,9 @@ const elements = {
   removeBtn: document.getElementById('removeBtn'),
   encryptForm: document.getElementById('encryptForm'),
   imageName: document.getElementById('imageName'),
+  imageTagsInput: document.getElementById('imageTagsInput'),
+  tagSuggestions: document.getElementById('tagSuggestions'),
+  compressionToggle: document.getElementById('compressionToggle'),
   encryptKey: document.getElementById('encryptKey'),
   confirmKey: document.getElementById('confirmKey'),
   encryptBtn: document.getElementById('encryptBtn'),
@@ -65,6 +77,14 @@ const elements = {
   decryptedImage: document.getElementById('decryptedImage'),
   deleteBtn: document.getElementById('deleteBtn'),
   lockBtn: document.getElementById('lockBtn'),
+  
+  // Tag management in modal
+  imageTags: document.getElementById('imageTags'),
+  editTagsBtn: document.getElementById('editTagsBtn'),
+  tagEditContainer: document.getElementById('tagEditContainer'),
+  tagEditInput: document.getElementById('tagEditInput'),
+  saveTagsBtn: document.getElementById('saveTagsBtn'),
+  cancelTagsBtn: document.getElementById('cancelTagsBtn'),
   
   // Zoom controls
   zoomInBtn: document.getElementById('zoomInBtn'),
@@ -589,6 +609,68 @@ document.querySelectorAll('.btn-toggle-pass').forEach(btn => {
   });
 });
 
+// ===== Image Compression =====
+async function compressImage(file) {
+  return new Promise((resolve, reject) => {
+    const reader = new FileReader();
+    
+    reader.onload = (e) => {
+      const img = new Image();
+      
+      img.onload = () => {
+        // Create canvas
+        const canvas = document.createElement('canvas');
+        const ctx = canvas.getContext('2d');
+        
+        // Set canvas dimensions to image dimensions
+        canvas.width = img.width;
+        canvas.height = img.height;
+        
+        // Draw image on canvas
+        ctx.drawImage(img, 0, 0);
+        
+        // Convert to blob with JPEG format at 70% quality
+        canvas.toBlob((blob) => {
+          if (blob) {
+            // Create a new File object from the blob
+            const compressedFile = new File([blob], file.name.replace(/\.[^/.]+$/, '.jpg'), {
+              type: 'image/jpeg',
+              lastModified: Date.now()
+            });
+            
+            const originalSize = file.size;
+            const compressedSize = compressedFile.size;
+            const savings = ((originalSize - compressedSize) / originalSize * 100).toFixed(1);
+            
+            console.log('Compression results:', {
+              original: (originalSize / 1024).toFixed(2) + ' KB',
+              compressed: (compressedSize / 1024).toFixed(2) + ' KB',
+              savings: savings + '%'
+            });
+            
+            // Only use compressed version if it's actually smaller
+            if (compressedSize < originalSize) {
+              showToast(`Image compressed: ${savings}% smaller`, 'success');
+              resolve(compressedFile);
+            } else {
+              showToast('Compression skipped: original is optimal', 'info');
+              resolve(file);
+            }
+          } else {
+            reject(new Error('Failed to compress image'));
+          }
+        }, 'image/jpeg', 0.7); // JPEG with 70% quality
+      };
+      
+      img.onerror = () => reject(new Error('Failed to load image'));
+      img.src = e.target.result;
+    };
+    
+    reader.onerror = () => reject(new Error('Failed to read file'));
+    reader.readAsDataURL(file);
+  });
+}
+
 // ===== Encrypt Form =====
 elements.encryptForm.addEventListener('submit', async (e) => {
   e.preventDefault();
@@ -620,10 +702,29 @@ elements.encryptForm.addEventListener('submit', async (e) => {
   elements.encryptBtn.querySelector('.btn-loading').classList.remove('hidden');
   
   try {
+    // Compress image if toggle is enabled
+    let fileToEncrypt = selectedFile;
+    if (elements.compressionToggle.checked) {
+      try {
+        elements.encryptBtn.querySelector('.btn-loading').textContent = '⏳ Compressing...';
+        fileToEncrypt = await compressImage(selectedFile);
+      } catch (compressionError) {
+        console.error('Compression error:', compressionError);
+        showToast('Compression failed, using original image', 'warning');
+        fileToEncrypt = selectedFile;
+      }
+    }
+    
+    elements.encryptBtn.querySelector('.btn-loading').textContent = '⏳ Encrypting...';
+    
     const formData = new FormData();
-    formData.append('image', selectedFile);
+    formData.append('image', fileToEncrypt);
     formData.append('key', key);
     formData.append('name', elements.imageName.value || selectedFile.name);
+    
+    // Add tags if provided
+    const tags = parseTags(elements.imageTagsInput.value);
+    formData.append('tags', JSON.stringify(tags));
     
     const response = await fetch('/api/encrypt', {
       method: 'POST',
@@ -642,6 +743,7 @@ elements.encryptForm.addEventListener('submit', async (e) => {
       elements.preview.classList.add('hidden');
       elements.dropzone.querySelector('.dropzone-content').classList.remove('hidden');
       elements.imageName.value = '';
+      elements.imageTagsInput.value = '';
       elements.encryptKey.value = '';
       elements.confirmKey.value = '';
       
@@ -658,8 +760,202 @@ elements.encryptForm.addEventListener('submit', async (e) => {
     elements.encryptBtn.disabled = false;
     elements.encryptBtn.querySelector('.btn-text').classList.remove('hidden');
     elements.encryptBtn.querySelector('.btn-loading').classList.add('hidden');
+    elements.encryptBtn.querySelector('.btn-loading').textContent = '⏳ Encrypting...';
   }
 });
+
+// ===== Tag Management =====
+
+// Extract all unique tags from images
+function extractAllTags() {
+  const tagSet = new Set();
+  images.forEach(img => {
+    if (img.tags && Array.isArray(img.tags)) {
+      img.tags.forEach(tag => tagSet.add(tag.toLowerCase()));
+    }
+  });
+  allTags = Array.from(tagSet).sort();
+  return allTags;
+}
+
+// Parse tags from input string (comma-separated)
+function parseTags(input) {
+  if (!input || typeof input !== 'string') return [];
+  return input
+    .split(',')
+    .map(tag => tag.trim())
+    .filter(tag => tag.length > 0)
+    .map(tag => tag.toLowerCase());
+}
+
+// Render tag badges
+function renderTagBadges(tags, containerId) {
+  const container = document.getElementById(containerId);
+  if (!container) return;
+  
+  if (!tags || tags.length === 0) {
+    container.innerHTML = '<span class="no-tags">No tags</span>';
+    return;
+  }
+  
+  container.innerHTML = tags.map(tag => 
+    `<span class="tag-badge">${tag}</span>`
+  ).join('');
+}
+
+// Show tag suggestions
+function showTagSuggestions(input, suggestionsElement) {
+  if (!input || allTags.length === 0) {
+    suggestionsElement.style.display = 'none';
+    return;
+  }
+  
+  const query = input.toLowerCase();
+  const matches = allTags.filter(tag => tag.includes(query));
+  
+  if (matches.length === 0) {
+    suggestionsElement.style.display = 'none';
+    return;
+  }
+  
+  suggestionsElement.innerHTML = matches.slice(0, 5).map(tag => 
+    `<div class="tag-suggestion" onclick="selectSuggestion('${tag}')">${tag}</div>`
+  ).join('');
+  suggestionsElement.style.display = 'block';
+}
+
+// Select a tag suggestion
+function selectSuggestion(tag) {
+  const input = elements.imageTagsInput;
+  const currentValue = input.value.trim();
+  const tags = currentValue ? currentValue.split(',').map(t => t.trim()) : [];
+  
+  // Add tag if not already present
+  if (!tags.includes(tag)) {
+    tags.push(tag);
+    input.value = tags.join(', ');
+  }
+  
+  elements.tagSuggestions.style.display = 'none';
+  input.focus();
+}
+
+// Update tags for an image
+async function updateImageTags(imageId, tags) {
+  console.log('updateImageTags called:', { imageId, tags, sessionKey: sessionKey ? 'exists' : 'missing' });
+  
+  if (!sessionKey) {
+    showToast('Session key required to update tags', 'error');
+    return false;
+  }
+  
+  try {
+    console.log('Sending request to:', `/api/images/${imageId}/tags`);
+    console.log('Request body:', { key: '***', tags });
+    
+    const response = await fetch(`/api/images/${imageId}/tags`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ key: sessionKey, tags })
+    });
+    
+    console.log('Response status:', response.status);
+    const result = await response.json();
+    console.log('Response data:', result);
+    
+    if (response.ok) {
+      // Update local image data
+      const imgIndex = images.findIndex(img => img.id === imageId);
+      if (imgIndex !== -1) {
+        images[imgIndex].tags = tags;
+        console.log('Updated local images array at index:', imgIndex);
+      }
+      
+      // Update current image if it's the one being edited
+      if (currentImage && currentImage.id === imageId) {
+        currentImage.tags = tags;
+        console.log('Updated currentImage.tags');
+      }
+      
+      // Refresh tag list
+      extractAllTags();
+      
+      showToast('Tags updated successfully', 'success');
+      return true;
+    } else {
+      showToast(result.error || 'Failed to update tags', 'error');
+      return false;
+    }
+  } catch (error) {
+    console.error('Update tags error:', error);
+    showToast('Failed to update tags', 'error');
+    return false;
+  }
+}
+
+// Search/filter images by tags ONLY
+function searchImages(query) {
+  searchQuery = query.toLowerCase().trim();
+  
+  if (!searchQuery) {
+    clearSearch();
+    return;
+  }
+  
+  // Split search query into multiple tags (comma-separated)
+  const searchTags = searchQuery.split(',').map(t => t.trim()).filter(t => t.length > 0);
+  
+  // Search ONLY in tags (not in image names)
+  filteredImages = images.filter(img => {
+    if (!img.tags || img.tags.length === 0) {
+      return false; // No tags = no match
+    }
+    
+    // Match if ANY search tag matches ANY image tag (partial match)
+    return searchTags.some(searchTag => 
+      img.tags.some(imageTag => 
+        imageTag.toLowerCase().includes(searchTag)
+      )
+    );
+  });
+  
+  // Reset to first page for search results
+  currentPage = 1;
+  renderImages();
+  
+  // Show search results info and clear button
+  if (elements.searchResultsInfo) {
+    if (filteredImages.length === 0) {
+      elements.searchResultsInfo.textContent = `No images found with tag "${searchQuery}"`;
+      elements.searchResultsInfo.style.display = 'block';
+    } else {
+      elements.searchResultsInfo.textContent = `Found ${filteredImages.length} image${filteredImages.length !== 1 ? 's' : ''} with tag "${searchQuery}"`;
+      elements.searchResultsInfo.style.display = 'block';
+    }
+  }
+  
+  if (elements.clearSearchBtn) {
+    elements.clearSearchBtn.classList.remove('hidden');
+  }
+}
+
+// Clear search
+function clearSearch() {
+  searchQuery = '';
+  filteredImages = [];
+  elements.searchInput.value = '';
+  
+  if (elements.searchResultsInfo) {
+    elements.searchResultsInfo.style.display = 'none';
+  }
+  
+  if (elements.clearSearchBtn) {
+    elements.clearSearchBtn.classList.add('hidden');
+  }
+  
+  currentPage = 1;
+  renderImages();
+}
 
 // ===== Load Images =====
 async function loadImages() {
@@ -668,7 +964,9 @@ async function loadImages() {
     const result = await response.json();
     
     images = result.images || [];
+    extractAllTags(); // Extract tags after loading images
     currentPage = 1; // Reset to first page
+    clearSearch(); // Clear any active search
     renderImages();
   } catch (error) {
     console.error('Failed to load images:', error);
@@ -677,8 +975,16 @@ async function loadImages() {
 }
 
 function renderImages() {
-  if (images.length === 0) {
+  // Use filtered images if search is active, otherwise use all images
+  const displayImages = searchQuery ? filteredImages : images;
+  
+  if (displayImages.length === 0) {
     elements.imageGrid.innerHTML = '';
+    if (searchQuery) {
+      elements.emptyState.innerHTML = '<p>No images found matching your search.</p>';
+    } else {
+      elements.emptyState.innerHTML = '<p>No encrypted images yet. Upload and encrypt your first image!</p>';
+    }
     elements.emptyState.classList.remove('hidden');
     elements.pagination.style.display = 'none';
     return;
@@ -687,12 +993,12 @@ function renderImages() {
   elements.emptyState.classList.add('hidden');
   
   // Calculate pagination
-  const totalPages = Math.ceil(images.length / imagesPerPage);
+  const totalPages = Math.ceil(displayImages.length / imagesPerPage);
   const startIndex = (currentPage - 1) * imagesPerPage;
   const endIndex = startIndex + imagesPerPage;
-  const paginatedImages = images.slice(startIndex, endIndex);
+  const paginatedImages = displayImages.slice(startIndex, endIndex);
   
-  // Render paginated images
+  // Render paginated images with tags
   elements.imageGrid.innerHTML = paginatedImages.map(img => `
     <div class="image-card" data-id="${img.id}">
       <div class="image-placeholder" id="placeholder-${img.id}">
@@ -703,6 +1009,12 @@ function renderImages() {
         <p class="image-meta">
           ${formatFileSize(img.size)} • ${formatDate(img.encryptedAt)}
         </p>
+        ${img.tags && img.tags.length > 0 ? `
+          <div class="image-tags-preview">
+            ${img.tags.slice(0, 3).map(tag => `<span class="tag-badge-small">${tag}</span>`).join('')}
+            ${img.tags.length > 3 ? `<span class="tag-more">+${img.tags.length - 3}</span>` : ''}
+          </div>
+        ` : ''}
       </div>
       <button class="btn btn-view" onclick="openViewer('${img.id}')">
         👁️ View
@@ -711,7 +1023,7 @@ function renderImages() {
   `).join('');
   
   // Update pagination controls
-  updatePaginationControls(totalPages);
+  updatePaginationControls(totalPages, displayImages.length);
   
   // Load thumbnails if session key is set AND thumbnails are enabled
   if (sessionKey && showThumbnails) {
@@ -722,7 +1034,7 @@ function renderImages() {
   elements.imageGrid.scrollIntoView({ behavior: 'smooth', block: 'start' });
 }
 
-function updatePaginationControls(totalPages) {
+function updatePaginationControls(totalPages, totalCount) {
   if (totalPages <= 1) {
     elements.pagination.style.display = 'none';
     return;
@@ -730,7 +1042,7 @@ function updatePaginationControls(totalPages) {
   
   elements.pagination.style.display = 'flex';
   elements.pageInfo.textContent = `Page ${currentPage} of ${totalPages}`;
-  elements.totalImages.textContent = `${images.length} image${images.length !== 1 ? 's' : ''}`;
+  elements.totalImages.textContent = `${totalCount} image${totalCount !== 1 ? 's' : ''}`;
   
   // Update button states
   elements.prevPageBtn.disabled = currentPage === 1;
@@ -738,7 +1050,8 @@ function updatePaginationControls(totalPages) {
 }
 
 function goToPage(page) {
-  const totalPages = Math.ceil(images.length / imagesPerPage);
+  const displayImages = searchQuery ? filteredImages : images;
+  const totalPages = Math.ceil(displayImages.length / imagesPerPage);
   
   if (page < 1 || page > totalPages) {
     return;
@@ -948,6 +1261,19 @@ function openViewer(id) {
   elements.lockBtn.style.display = 'none';
   elements.decryptedImage.src = '';
   
+  // Display tags
+  if (elements.imageTags) {
+    renderTagBadges(currentImage.tags || [], 'imageTags');
+    elements.tagEditContainer.style.display = 'none';
+    elements.tagEditContainer.classList.add('hidden');
+    elements.imageTags.style.display = 'block';
+    
+    // Show/hide edit button based on session key
+    if (elements.editTagsBtn) {
+      elements.editTagsBtn.style.display = sessionKey ? 'inline-block' : 'none';
+    }
+  }
+  
   // Update image counter and carousel buttons
   updateCarouselControls();
   
@@ -1098,6 +1424,130 @@ elements.deleteBtn.addEventListener('click', async () => {
   }
 });
 
+// ===== Search =====
+if (elements.searchInput) {
+  // Search on Enter key
+  elements.searchInput.addEventListener('keypress', (e) => {
+    if (e.key === 'Enter') {
+      searchImages(elements.searchInput.value);
+    }
+  });
+  
+  // Real-time search as user types (debounced)
+  let searchTimeout;
+  elements.searchInput.addEventListener('input', (e) => {
+    clearTimeout(searchTimeout);
+    searchTimeout = setTimeout(() => {
+      searchImages(e.target.value);
+    }, 300);
+  });
+}
+
+if (elements.searchBtn) {
+  elements.searchBtn.addEventListener('click', () => {
+    searchImages(elements.searchInput.value);
+  });
+}
+
+if (elements.clearSearchBtn) {
+  elements.clearSearchBtn.addEventListener('click', clearSearch);
+}
+
+// ===== Tag Management =====
+
+// Tag suggestions in encrypt form
+if (elements.imageTagsInput) {
+  elements.imageTagsInput.addEventListener('input', (e) => {
+    const value = e.target.value;
+    const lastTag = value.split(',').pop().trim();
+    showTagSuggestions(lastTag, elements.tagSuggestions);
+  });
+  
+  // Hide suggestions when clicking outside
+  document.addEventListener('click', (e) => {
+    if (e.target !== elements.imageTagsInput) {
+      elements.tagSuggestions.style.display = 'none';
+    }
+  });
+}
+
+// Tag editing in viewer modal
+if (elements.editTagsBtn) {
+  elements.editTagsBtn.addEventListener('click', () => {
+    console.log('Edit tags button clicked');
+    console.log('Session key:', sessionKey ? 'exists' : 'missing');
+    console.log('Current image:', currentImage);
+    
+    if (!sessionKey) {
+      showToast('Session key required to edit tags', 'error');
+      return;
+    }
+    
+    if (!currentImage) {
+      showToast('No image selected', 'error');
+      return;
+    }
+    
+    // Show edit mode
+    elements.imageTags.style.display = 'none';
+    elements.editTagsBtn.style.display = 'none';
+    elements.tagEditContainer.style.display = 'block';
+    elements.tagEditContainer.classList.remove('hidden');
+    
+    // Set current tags
+    const currentTags = currentImage.tags || [];
+    elements.tagEditInput.value = currentTags.join(', ');
+    elements.tagEditInput.focus();
+    
+    console.log('Edit mode activated with tags:', currentTags);
+  });
+}
+
+if (elements.saveTagsBtn) {
+  elements.saveTagsBtn.addEventListener('click', async () => {
+    console.log('Save tags button clicked');
+    console.log('Tag input value:', elements.tagEditInput.value);
+    
+    const tags = parseTags(elements.tagEditInput.value);
+    console.log('Parsed tags:', tags);
+    console.log('Current image ID:', currentImage?.id);
+    
+    if (!currentImage) {
+      showToast('No image selected', 'error');
+      return;
+    }
+    
+    const success = await updateImageTags(currentImage.id, tags);
+    console.log('Update result:', success);
+    
+    if (success) {
+      // Update display
+      renderTagBadges(tags, 'imageTags');
+      
+      // Hide edit mode
+      elements.tagEditContainer.style.display = 'none';
+      elements.tagEditContainer.classList.add('hidden');
+      elements.imageTags.style.display = 'block';
+      elements.editTagsBtn.style.display = 'inline-block';
+      
+      // Refresh gallery to show updated tags
+      renderImages();
+    }
+  });
+}
+
+if (elements.cancelTagsBtn) {
+  elements.cancelTagsBtn.addEventListener('click', () => {
+    console.log('Cancel tags button clicked');
+    
+    // Hide edit mode
+    elements.tagEditContainer.style.display = 'none';
+    elements.tagEditContainer.classList.add('hidden');
+    elements.imageTags.style.display = 'block';
+    elements.editTagsBtn.style.display = 'inline-block';
+  });
+}
+
 // ===== Initialize =====
 document.addEventListener('DOMContentLoaded', () => {
   initTheme();
@@ -1109,3 +1559,4 @@ document.addEventListener('DOMContentLoaded', () => {
 // Expose to window for onclick handlers
 window.switchTab = switchTab;
 window.openViewer = openViewer;
+window.selectSuggestion = selectSuggestion;
