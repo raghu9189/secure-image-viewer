@@ -6,6 +6,11 @@ let currentImage = null;
 let currentImageIndex = -1;
 let selectedFile = null;
 let sessionKey = null; // Session-wide encryption/decryption key
+let showThumbnails = true; // Thumbnail preview toggle state
+
+// Pagination state
+let currentPage = 1;
+const imagesPerPage = 20;
 
 // DOM Elements
 const elements = {
@@ -17,6 +22,18 @@ const elements = {
   imageGrid: document.getElementById('imageGrid'),
   emptyState: document.getElementById('emptyState'),
   refreshBtn: document.getElementById('refreshBtn'),
+  
+  // Pagination
+  pagination: document.getElementById('pagination'),
+  prevPageBtn: document.getElementById('prevPageBtn'),
+  nextPageBtn: document.getElementById('nextPageBtn'),
+  pageInfo: document.getElementById('pageInfo'),
+  totalImages: document.getElementById('totalImages'),
+  pageJumpBtn: document.getElementById('pageJumpBtn'),
+  pageJumpModal: document.getElementById('pageJumpModal'),
+  pageJumpInput: document.getElementById('pageJumpInput'),
+  pageJumpGo: document.getElementById('pageJumpGo'),
+  closePageJump: document.getElementById('closePageJump'),
   
   // Encrypt Form
   dropzone: document.getElementById('dropzone'),
@@ -67,6 +84,10 @@ const elements = {
   themeToggle: document.getElementById('themeToggle'),
   themeIcon: document.getElementById('themeIcon'),
   
+  // Thumbnail Toggle
+  thumbnailToggle: document.getElementById('thumbnailToggle'),
+  thumbnailIcon: document.getElementById('thumbnailIcon'),
+  
   // Session Key
   sessionKeyBtn: document.getElementById('sessionKeyBtn'),
   sessionKeyIcon: document.getElementById('sessionKeyIcon'),
@@ -99,6 +120,36 @@ function toggleTheme() {
 }
 
 elements.themeToggle.addEventListener('click', toggleTheme);
+
+// ===== Thumbnail Preview Toggle =====
+function initThumbnailToggle() {
+  const savedPref = localStorage.getItem('showThumbnails');
+  showThumbnails = savedPref === null ? true : savedPref === 'true';
+  updateThumbnailToggleUI();
+}
+
+function updateThumbnailToggleUI() {
+  if (elements.thumbnailIcon) {
+    elements.thumbnailIcon.textContent = showThumbnails ? '🖼️' : '🔒';
+    elements.thumbnailToggle.title = showThumbnails ? 'Hide Thumbnails' : 'Show Thumbnails';
+    elements.thumbnailToggle.classList.toggle('active', showThumbnails);
+  }
+}
+
+function toggleThumbnails() {
+  showThumbnails = !showThumbnails;
+  localStorage.setItem('showThumbnails', showThumbnails);
+  updateThumbnailToggleUI();
+  
+  // Reload gallery to apply changes
+  if (images.length > 0) {
+    renderImages();
+  }
+  
+  showToast(showThumbnails ? 'Thumbnails enabled' : 'Thumbnails disabled', 'info');
+}
+
+elements.thumbnailToggle.addEventListener('click', toggleThumbnails);
 
 // ===== Image Zoom & Pan Management =====
 let imageZoom = {
@@ -341,6 +392,11 @@ function updateSessionKeyUI() {
   
   // Update banner
   elements.sessionBanner.classList.toggle('hidden', !hasSessionKey);
+  
+  // Show/hide thumbnail toggle button based on session key
+  if (elements.thumbnailToggle) {
+    elements.thumbnailToggle.style.display = hasSessionKey ? 'flex' : 'none';
+  }
   
   // Update encrypt form
   elements.encryptKeyGroup.classList.toggle('hidden', hasSessionKey);
@@ -612,6 +668,7 @@ async function loadImages() {
     const result = await response.json();
     
     images = result.images || [];
+    currentPage = 1; // Reset to first page
     renderImages();
   } catch (error) {
     console.error('Failed to load images:', error);
@@ -623,12 +680,20 @@ function renderImages() {
   if (images.length === 0) {
     elements.imageGrid.innerHTML = '';
     elements.emptyState.classList.remove('hidden');
+    elements.pagination.style.display = 'none';
     return;
   }
   
   elements.emptyState.classList.add('hidden');
   
-  elements.imageGrid.innerHTML = images.map(img => `
+  // Calculate pagination
+  const totalPages = Math.ceil(images.length / imagesPerPage);
+  const startIndex = (currentPage - 1) * imagesPerPage;
+  const endIndex = startIndex + imagesPerPage;
+  const paginatedImages = images.slice(startIndex, endIndex);
+  
+  // Render paginated images
+  elements.imageGrid.innerHTML = paginatedImages.map(img => `
     <div class="image-card" data-id="${img.id}">
       <div class="image-placeholder" id="placeholder-${img.id}">
         <span class="lock-emoji">🔒</span>
@@ -645,15 +710,116 @@ function renderImages() {
     </div>
   `).join('');
   
-  // Load thumbnails if session key is set
-  if (sessionKey) {
-    loadThumbnails();
+  // Update pagination controls
+  updatePaginationControls(totalPages);
+  
+  // Load thumbnails if session key is set AND thumbnails are enabled
+  if (sessionKey && showThumbnails) {
+    loadThumbnails(paginatedImages);
+  }
+  
+  // Scroll to top of gallery when page changes
+  elements.imageGrid.scrollIntoView({ behavior: 'smooth', block: 'start' });
+}
+
+function updatePaginationControls(totalPages) {
+  if (totalPages <= 1) {
+    elements.pagination.style.display = 'none';
+    return;
+  }
+  
+  elements.pagination.style.display = 'flex';
+  elements.pageInfo.textContent = `Page ${currentPage} of ${totalPages}`;
+  elements.totalImages.textContent = `${images.length} image${images.length !== 1 ? 's' : ''}`;
+  
+  // Update button states
+  elements.prevPageBtn.disabled = currentPage === 1;
+  elements.nextPageBtn.disabled = currentPage === totalPages;
+}
+
+function goToPage(page) {
+  const totalPages = Math.ceil(images.length / imagesPerPage);
+  
+  if (page < 1 || page > totalPages) {
+    return;
+  }
+  
+  currentPage = page;
+  renderImages();
+}
+
+function goToPreviousPage() {
+  if (currentPage > 1) {
+    goToPage(currentPage - 1);
   }
 }
 
-// Load blurred thumbnails for all images
-async function loadThumbnails() {
-  for (const img of images) {
+function goToNextPage() {
+  const totalPages = Math.ceil(images.length / imagesPerPage);
+  if (currentPage < totalPages) {
+    goToPage(currentPage + 1);
+  }
+}
+
+// Pagination event listeners
+elements.prevPageBtn.addEventListener('click', goToPreviousPage);
+elements.nextPageBtn.addEventListener('click', goToNextPage);
+
+// ===== Page Jump =====
+function openPageJump() {
+  const totalPages = Math.ceil(images.length / imagesPerPage);
+  elements.pageJumpInput.max = totalPages;
+  elements.pageJumpInput.value = '';
+  elements.pageJumpInput.placeholder = `Enter page (1-${totalPages})`;
+  elements.pageJumpModal.classList.remove('hidden');
+  setTimeout(() => elements.pageJumpInput.focus(), 100);
+}
+
+function closePageJump() {
+  elements.pageJumpModal.classList.add('hidden');
+  elements.pageJumpInput.value = '';
+}
+
+function jumpToPage() {
+  const pageNumber = parseInt(elements.pageJumpInput.value);
+  const totalPages = Math.ceil(images.length / imagesPerPage);
+  
+  if (!pageNumber || pageNumber < 1 || pageNumber > totalPages) {
+    showToast(`Please enter a valid page number (1-${totalPages})`, 'error');
+    return;
+  }
+  
+  goToPage(pageNumber);
+  closePageJump();
+  showToast(`Jumped to page ${pageNumber}`, 'success');
+}
+
+// Page jump event listeners
+elements.pageJumpBtn.addEventListener('click', openPageJump);
+elements.closePageJump.addEventListener('click', closePageJump);
+elements.pageJumpGo.addEventListener('click', jumpToPage);
+elements.pageJumpInput.addEventListener('keypress', (e) => {
+  if (e.key === 'Enter') {
+    jumpToPage();
+  }
+});
+
+// Close page jump modal on outside click
+elements.pageJumpModal.addEventListener('click', (e) => {
+  if (e.target === elements.pageJumpModal) {
+    closePageJump();
+  }
+});
+
+// Load blurred thumbnails for paginated images
+async function loadThumbnails(imagesToLoad) {
+  // Double check the toggle state
+  if (!showThumbnails) return;
+  
+  // Use provided list or fall back to all images
+  const imageList = imagesToLoad || images;
+  
+  for (const img of imageList) {
     try {
       const response = await fetch(`/api/thumbnail/${img.id}`, {
         method: 'POST',
@@ -935,6 +1101,7 @@ elements.deleteBtn.addEventListener('click', async () => {
 // ===== Initialize =====
 document.addEventListener('DOMContentLoaded', () => {
   initTheme();
+  initThumbnailToggle();
   updateSessionKeyUI();
   loadImages();
 });

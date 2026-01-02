@@ -20,6 +20,10 @@
             <h1>Secure Image Viewer</h1>
           </div>
           <div class="header-actions">
+            <!-- Thumbnail Toggle -->
+            <button class="btn btn-icon" id="thumbnailToggle" title="Toggle Thumbnail Preview" style="display: none;">
+              <span id="thumbnailIcon">🖼️</span>
+            </button>
             <!-- Session Key Indicator -->
             <button class="btn btn-icon" id="sessionKeyBtn" title="Session Key">
               <span id="sessionKeyIcon">🔑</span>
@@ -99,6 +103,35 @@
           
           <div id="imageGrid" class="image-grid">
             <!-- Images will be loaded here -->
+          </div>
+          
+          <!-- Pagination Controls -->
+          <div class="pagination" id="pagination" style="display: none;">
+            <button class="btn btn-secondary pagination-btn" id="prevPageBtn" disabled>
+              <span>‹</span> Previous
+            </button>
+            <div class="pagination-info">
+              <div class="page-display">
+                <span id="pageInfo">Page 1 of 1</span>
+                <button class="btn-page-jump" id="pageJumpBtn" title="Jump to page">⋯</button>
+              </div>
+              <span class="pagination-total" id="totalImages">0 images</span>
+            </div>
+            <button class="btn btn-secondary pagination-btn" id="nextPageBtn" disabled>
+              Next <span>›</span>
+            </button>
+          </div>
+          
+          <!-- Page Jump Modal -->
+          <div class="page-jump-modal hidden" id="pageJumpModal">
+            <div class="page-jump-content">
+              <h4>Jump to Page</h4>
+              <div class="page-jump-input-group">
+                <input type="number" id="pageJumpInput" min="1" placeholder="Enter page number">
+                <button class="btn btn-primary btn-sm" id="pageJumpGo">Go</button>
+              </div>
+              <button class="btn-close-jump" id="closePageJump">✕</button>
+            </div>
           </div>
           
           <div id="emptyState" class="empty-state hidden">
