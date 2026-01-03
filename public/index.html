@@ -62,7 +62,7 @@
           <div class="form-group">
             <label for="sessionKeyInput">Session Key</label>
             <div class="input-with-icon">
-              <input type="password" id="sessionKeyInput" placeholder="Enter your session key" minlength="4">
+              <input type="password" id="sessionKeyInput" placeholder="Enter your session key" minlength="4" autocomplete="off">
               <button type="button" class="btn-toggle-pass" data-target="sessionKeyInput">👁️</button>
             </div>
             <small>Minimum 4 characters. Key is stored only in browser memory.</small>
@@ -122,7 +122,7 @@
           <!-- Search Bar -->
           <div class="search-bar" id="searchBar">
             <div class="search-input-container">
-              <input type="text" id="searchInput" placeholder="Search by tags (e.g., vacation, beach)..." class="search-input">
+              <input type="text" id="searchInput" placeholder="Search by tags (e.g., vacation, beach)..." class="search-input" autocomplete="off">
               <button class="btn btn-icon search-btn" id="searchBtn" title="Search">🔍</button>
               <button class="btn btn-icon clear-search-btn hidden" id="clearSearchBtn" title="Clear search">✕</button>
             </div>
@@ -155,7 +155,7 @@
             <div class="page-jump-content">
               <h4>Jump to Page</h4>
               <div class="page-jump-input-group">
-                <input type="number" id="pageJumpInput" min="1" placeholder="Enter page number">
+                <input type="number" id="pageJumpInput" min="1" placeholder="Enter page number" autocomplete="off">
                 <button class="btn btn-primary btn-sm" id="pageJumpGo">Go</button>
               </div>
               <button class="btn-close-jump" id="closePageJump">✕</button>
@@ -195,13 +195,13 @@
               <!-- Image Name -->
               <div class="form-group">
                 <label for="imageName">Image Name (optional)</label>
-                <input type="text" id="imageName" placeholder="Enter a name for your image">
+                <input type="text" id="imageName" placeholder="Enter a name for your image" autocomplete="off">
               </div>
 
               <!-- Tags -->
               <div class="form-group">
                 <label for="imageTagsInput">Tags (optional)</label>
-                <input type="text" id="imageTagsInput" placeholder="Enter tags separated by commas (e.g., nature, travel, sunset)">
+                <input type="text" id="imageTagsInput" placeholder="Enter tags separated by commas (e.g., nature, travel, sunset)" autocomplete="off">
                 <small>Tags help you organize and search your images</small>
                 <div class="tag-suggestions" id="tagSuggestions"></div>
               </div>
@@ -220,7 +220,7 @@
               <div class="form-group" id="encryptKeyGroup">
                 <label for="encryptKey">Encryption Key *</label>
                 <div class="input-with-icon">
-                  <input type="password" id="encryptKey" placeholder="Enter your secret key" required minlength="4">
+                  <input type="password" id="encryptKey" placeholder="Enter your secret key" required minlength="4" autocomplete="off">
                   <button type="button" class="btn-toggle-pass" data-target="encryptKey">👁️</button>
                 </div>
                 <small>Minimum 4 characters. Remember this key to view your image!</small>
@@ -230,7 +230,7 @@
               <div class="form-group" id="confirmKeyGroup">
                 <label for="confirmKey">Confirm Key *</label>
                 <div class="input-with-icon">
-                  <input type="password" id="confirmKey" placeholder="Confirm your secret key" required>
+                  <input type="password" id="confirmKey" placeholder="Confirm your secret key" required autocomplete="off">
                   <button type="button" class="btn-toggle-pass" data-target="confirmKey">👁️</button>
                 </div>
               </div>
@@ -267,7 +267,7 @@
             <p>This image is encrypted. Enter the key to view it.</p>
             <div class="form-group" id="decryptKeyGroup">
               <div class="input-with-icon">
-                <input type="password" id="decryptKey" placeholder="Enter decryption key">
+                <input type="password" id="decryptKey" placeholder="Enter decryption key" autocomplete="off">
                 <button type="button" class="btn-toggle-pass" data-target="decryptKey">👁️</button>
               </div>
             </div>
@@ -333,7 +333,7 @@
               </div>
             </div>
             <div class="tag-edit-container" id="optionsTagEditContainer">
-              <input type="text" id="optionsTagEditInput" placeholder="Enter tags separated by commas" class="tag-edit-input">
+              <input type="text" id="optionsTagEditInput" placeholder="Enter tags separated by commas" class="tag-edit-input" autocomplete="off">
               <div class="tag-edit-actions">
                 <button class="btn btn-sm btn-primary" id="optionsSaveTagsBtn">💾 Save Tags</button>
               </div>

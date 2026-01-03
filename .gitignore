@@ -28,3 +28,7 @@ encrypted/*
 # add images folder to gitignore but keep the folder itself
 images/*
 !images/.gitkeep
+
+# add decrypted folder to gitignore but keep the folder itself
+decrypted/*
+!decrypted/.gitkeep
