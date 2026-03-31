@@ -18,7 +18,7 @@ let showAlbumsView = false;
 
 // Pagination state
 let currentPage = 1;
-const imagesPerPage = 10;
+const imagesPerPage = 20;
 
 // DOM Elements
 const elements = {
